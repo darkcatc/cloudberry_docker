@@ -1,0 +1,169 @@
+# HashData Lightning 2.0 集群 Docker Compose 配置
+# 作者: Vance Chen
+# 集群架构: 1 Master + 2 Segment (无 Mirror)
+
+services:
+  # HashData Master 节点
+  hashdata-master:
+    container_name: hashdata-master
+    image: ${IMAGE_NAME}:${IMAGE_TAG}
+    hostname: master
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HASHDATA_DOWNLOAD_URL: ${HASHDATA_DOWNLOAD_URL}
+        ROOT_PASSWORD: ${ROOT_PASSWORD}
+        GPADMIN_PASSWORD: ${GPADMIN_PASSWORD}
+    ports:
+      - "${MASTER_PORT}:5432"
+      - "${MASTER_SSH_PORT}:22"
+    networks:
+      hashdata-network:
+        ipv4_address: ${MASTER_IP}
+    environment:
+      - NODE_TYPE=master
+      - HOSTNAME=master
+      - MASTER_IP=${MASTER_IP}
+      - SEGMENT1_IP=${SEGMENT1_IP}
+      - SEGMENT2_IP=${SEGMENT2_IP}
+      - ROOT_PASSWORD=${ROOT_PASSWORD}
+      - GPADMIN_PASSWORD=${GPADMIN_PASSWORD}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    volumes:
+      - ./data/master:/data
+      - ./logs/master:/var/log/hashdata
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    mem_limit: ${MASTER_MEMORY}
+    shm_size: '1g'
+    privileged: true
+    tty: true
+    depends_on:
+      - hashdata-segment1
+      - hashdata-segment2
+    healthcheck:
+      test: ["CMD", "su", "-", "gpadmin", "-c", "psql -c 'SELECT 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # HashData Segment 节点 1
+  hashdata-segment1:
+    container_name: hashdata-segment1
+    image: ${IMAGE_NAME}:${IMAGE_TAG}
+    hostname: segment1
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HASHDATA_DOWNLOAD_URL: ${HASHDATA_DOWNLOAD_URL}
+        ROOT_PASSWORD: ${ROOT_PASSWORD}
+        GPADMIN_PASSWORD: ${GPADMIN_PASSWORD}
+    ports:
+      - "${SEGMENT1_PORT}:40000"
+      - "${SEGMENT1_SSH_PORT}:22"
+    networks:
+      hashdata-network:
+        ipv4_address: ${SEGMENT1_IP}
+    environment:
+      - NODE_TYPE=segment
+      - HOSTNAME=segment1
+      - MASTER_IP=${MASTER_IP}
+      - SEGMENT1_IP=${SEGMENT1_IP}
+      - SEGMENT2_IP=${SEGMENT2_IP}
+      - ROOT_PASSWORD=${ROOT_PASSWORD}
+      - GPADMIN_PASSWORD=${GPADMIN_PASSWORD}
+      - SEGMENT_ID=1
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./data/segment1:/data
+      - ./logs/segment1:/var/log/hashdata
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    mem_limit: ${SEGMENT_MEMORY}
+    shm_size: '1g'
+    privileged: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "systemctl", "is-active", "sshd"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # HashData Segment 节点 2
+  hashdata-segment2:
+    container_name: hashdata-segment2
+    image: ${IMAGE_NAME}:${IMAGE_TAG}
+    hostname: segment2
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HASHDATA_DOWNLOAD_URL: ${HASHDATA_DOWNLOAD_URL}
+        ROOT_PASSWORD: ${ROOT_PASSWORD}
+        GPADMIN_PASSWORD: ${GPADMIN_PASSWORD}
+    ports:
+      - "${SEGMENT2_PORT}:40000"
+      - "${SEGMENT2_SSH_PORT}:22"
+    networks:
+      hashdata-network:
+        ipv4_address: ${SEGMENT2_IP}
+    environment:
+      - NODE_TYPE=segment
+      - HOSTNAME=segment2
+      - MASTER_IP=${MASTER_IP}
+      - SEGMENT1_IP=${SEGMENT1_IP}
+      - SEGMENT2_IP=${SEGMENT2_IP}
+      - ROOT_PASSWORD=${ROOT_PASSWORD}
+      - GPADMIN_PASSWORD=${GPADMIN_PASSWORD}
+      - SEGMENT_ID=2
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./data/segment2:/data
+      - ./logs/segment2:/var/log/hashdata
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    mem_limit: ${SEGMENT_MEMORY}
+    shm_size: '1g'
+    privileged: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "systemctl", "is-active", "sshd"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 网络配置
+networks:
+  hashdata-network:
+    name: ${NETWORK_NAME}
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${NETWORK_SUBNET}
+          gateway: ${NETWORK_GATEWAY}
+
+# 数据卷配置
+volumes:
+  master-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/master
+  segment1-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/segment1
+  segment2-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/segment2 

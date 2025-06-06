@@ -1,0 +1,49 @@
+services:
+  cbdb-coordinator:
+    container_name: cbdb-mdw
+    image: cbdb:centos9
+    ports:
+    - "15432:5432"
+    hostname: mdw
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.10
+    environment:
+      MULTINODE: "true"
+    mem_limit: 2g
+  cbdb-standby-coordinator:
+    container_name: cbdb-smdw
+    image: cbdb:centos9
+    hostname: smdw
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.11
+    mem_limit: 2g
+  cbdb-segment-host-1:
+    container_name: cbdb-sdw1
+    image: cbdb:centos9
+    hostname: sdw1
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.12
+    mem_limit: 2g
+  cbdb-segment-host-2:
+    container_name: cbdb-sdw2
+    image: cbdb:centos9
+    hostname: sdw2
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.13
+    mem_limit: 2g
+networks:
+  interconnect:
+    name: cbdb-interconnect
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.6.0.0/16
+         gateway: 10.6.0.1

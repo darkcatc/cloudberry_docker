@@ -1,0 +1,69 @@
+services:
+  cbdb-coordinator:
+    container_name: cbdb-mdw
+    image: cbdb:centos9
+    ports:
+    - "15432:5432"
+    hostname: mdw
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.10
+    environment:
+      MULTINODE: "true"
+      MIRRORLESS: "true"
+    mem_limit: 2g
+    volumes:  
+      - /data0/docker/:/data0
+  cbdb-segment-host-1:
+    container_name: cbdb-sdw1
+    image: cbdb:centos9
+    hostname: sdw1
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.16
+    mem_limit: 2g
+    volumes: 
+      - /data0/docker/:/data0    
+  cbdb-segment-host-2:
+    container_name: cbdb-sdw2
+    image: cbdb:centos9
+    hostname: sdw2
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.17
+    mem_limit: 2g
+    volumes: 
+      - /data0/docker/:/data0
+  cbdb-segment-host-3:
+    container_name: cbdb-sdw3
+    image: cbdb:centos9
+    hostname: sdw3
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.18
+    mem_limit: 2g
+    volumes: 
+      - /data0/docker/:/data0    
+  cbdb-segment-host-4:
+    container_name: cbdb-sdw4
+    image: cbdb:centos9
+    hostname: sdw4
+    tty: true
+    networks:
+      interconnect:
+        ipv4_address: 10.6.0.19
+    mem_limit: 2g
+    volumes: 
+      - /data0/docker/:/data0    
+networks:
+  interconnect:
+    name: cbdb-interconnect
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.6.0.0/16
+         gateway: 10.6.0.1
