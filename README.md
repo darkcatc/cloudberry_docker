@@ -38,7 +38,7 @@ hashdata_docker/
 │   └── update_configs.sh      # Configuration update utility
 └── configs/                    # Configuration files directory
     ├── cluster/               # Cluster configuration
-    │   ├── gpinitsystem.conf  # GP initialization configuration
+    │   ├── gpinitsystem.conf  # HashData initialization configuration
     │   └── hosts              # Host list
     ├── system/                # System configuration
     │   ├── sysctl.conf        # Kernel parameters
