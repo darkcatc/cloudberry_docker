@@ -1,157 +1,157 @@
 #!/bin/bash
-# 配置文件更新脚本
-# 作者: Vance Chen
-# 用途: 在不重建镜像的情况下更新运行中容器的配置文件
+# Configuration File Update Script
+# Author: Vance Chen
+# Purpose: Update configuration files in running containers without rebuilding the image
 
 set -euo pipefail
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[$(date '+%Y-%m-%d %H:%M:%S')] 信息\033[0m $1"
+    echo -e "\033[32m[$(date '+%Y-%m-%d %H:%M:%S')] INFO\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[$(date '+%Y-%m-%d %H:%M:%S')] 警告\033[0m $1"
+    echo -e "\033[33m[$(date '+%Y-%m-%d %H:%M:%S')] WARNING\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] 错误\033[0m $1"
+    echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] ERROR\033[0m $1"
 }
 
-# 显示帮助信息
-show_help() {
-    echo "配置文件更新工具"
+# Show help information
+show_help_info() {
+    echo "Configuration File Update Tool"
     echo ""
-    echo "用法: $0 [选项]"
+    echo "Usage: $0 [options]"
     echo ""
-    echo "选项:"
-    echo "  -r, --restart       重启所有容器（使用最新配置）"
-    echo "  -s, --status        显示容器状态"
-    echo "  -l, --logs          显示容器日志"
-    echo "  -c, --copy          手动复制配置文件到容器（备用方法）"
-    echo "  -h, --help          显示此帮助信息"
+    echo "Options:"
+    echo "  -r, --restart       Restart all containers (use latest configuration)"
+    echo "  -s, --status        Show container status"
+    echo "  -l, --logs          Show container logs"
+    echo "  -c, --copy          Manually copy configuration files to containers (alternative method)"
+    echo "  -h, --help          Show this help information"
     echo ""
-    echo "由于已经配置了volume挂载，修改宿主机configs目录中的文件后，只需重启容器即可生效。"
+    echo "Since volume mounting is already configured, after modifying files in the host's configs directory, you only need to restart the containers for changes to take effect."
 }
 
-# 检查容器状态
-check_status() {
-    print_info "检查容器状态..."
+# Check container status
+check_container_status() {
+    print_info "Checking container status..."
     
     local containers=("hashdata-master" "hashdata-segment1" "hashdata-segment2")
     
     for container in "${containers[@]}"; do
         if docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q "$container"; then
             local status=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "$container" | awk '{print $2}')
-            print_info "✓ $container: $status"
+            print_info "Container $container is running with status: $status"
         else
-            print_warning "✗ $container: 未运行"
+            print_warning "Container $container is not running"
         fi
     done
 }
 
-# 显示容器日志
-show_logs() {
+# Show container logs
+show_container_logs() {
     local container="${1:-hashdata-master}"
     
-    print_info "显示 $container 的最新日志..."
+    print_info "Showing latest logs for $container..."
     
     if docker ps --format "{{.Names}}" | grep -q "$container"; then
         docker logs --tail 50 "$container"
     else
-        print_error "容器 $container 未运行"
+        print_error "Container $container is not running"
     fi
 }
 
-# 重启容器（重新加载配置）
+# Restart containers (reload configuration)
 restart_containers() {
-    print_info "重启容器以应用配置更改..."
+    print_info "Restarting containers to apply configuration changes..."
     
-    # 加载环境变量
+    # Load environment variables
     if [ -f "hashdata.env" ]; then
         source hashdata.env
-        print_info "环境变量加载完成"
+        print_info "Environment variables loaded successfully"
     else
-        print_error "未找到环境配置文件 hashdata.env"
+        print_error "Environment configuration file hashdata.env not found"
         return 1
     fi
     
-    # 停止容器（但不删除）
-    print_info "停止容器..."
+    # Stop containers (without removing)
+    print_info "Stopping containers..."
     docker-compose --env-file hashdata.env stop
     
-    # 启动容器（使用最新的volume挂载配置）
-    print_info "启动容器..."
+    # Start containers (using the latest volume mount configuration)
+    print_info "Starting containers..."
     docker-compose --env-file hashdata.env up -d
     
-    print_info "容器重启完成！"
+    print_info "Containers restarted successfully!"
     print_info ""
-    print_info "提示: 配置文件现在通过volume挂载，直接修改 ./configs/ 目录中的文件即可。"
+    print_info "Tip: Configuration files are now mounted via volume, you can directly modify files in the ./configs/ directory."
 }
 
-# 手动复制配置文件（备用方法）
-copy_configs() {
-    print_info "手动复制配置文件到容器..."
+# Manually copy configuration files (alternative method)
+copy_configuration_files() {
+    print_info "Manually copying configuration files to containers..."
     
     local containers=("hashdata-master" "hashdata-segment1" "hashdata-segment2")
     
     for container in "${containers[@]}"; do
         if docker ps --format "{{.Names}}" | grep -q "$container"; then
-            print_info "复制配置到 $container..."
+            print_info "Copying configuration to $container..."
             
-            # 复制配置文件
+            # Copy configuration files
             docker cp ./configs/. "$container:/tmp/configs/"
             
-            # 设置权限
+            # Set permissions
             docker exec "$container" chown -R root:root /tmp/configs
             docker exec "$container" find /tmp/configs -type f -name "*.sh" -exec chmod +x {} \;
             
-            print_info "✓ $container 配置文件更新完成"
+            print_info "Container $container configuration files updated successfully"
         else
-            print_warning "✗ $container 未运行，跳过"
+            print_warning "Container $container is not running, skipping"
         fi
     done
 }
 
-# 主函数
+# Main function
 main() {
     case "${1:-}" in
         -r|--restart)
             restart_containers
             ;;
         -s|--status)
-            check_status
+            check_container_status
             ;;
         -l|--logs)
-            show_logs "${2:-hashdata-master}"
+            show_container_logs "${2:-hashdata-master}"
             ;;
         -c|--copy)
-            copy_configs
+            copy_configuration_files
             ;;
         -h|--help)
-            show_help
+            show_help_info
             ;;
         "")
-            print_info "====== HashData 配置文件调试工具 ======"
+            print_info "====== HashData Configuration Debugging Tool ======"
             print_info ""
-            print_info "当前配置: configs目录已通过volume挂载到容器"
-            print_info "修改建议: 直接编辑 ./configs/ 目录中的文件，然后重启容器"
+            print_info "Current configuration: configs directory is mounted to containers via volume"
+            print_info "Recommendation: Edit files directly in the ./configs/ directory, then restart containers"
             print_info ""
-            check_status
+            check_container_status
             print_info ""
-            print_info "常用命令:"
-            print_info "  ./scripts/update_configs.sh -r     # 重启容器应用配置"
-            print_info "  ./scripts/update_configs.sh -s     # 检查容器状态"
-            print_info "  ./scripts/update_configs.sh -l     # 查看日志"
-            print_info "  ./scripts/update_configs.sh -h     # 帮助信息"
+            print_info "Common commands:"
+            print_info "  ./scripts/update_configs.sh -r     # Restart containers to apply configuration"
+            print_info "  ./scripts/update_configs.sh -s     # Check container status"
+            print_info "  ./scripts/update_configs.sh -l     # View logs"
+            print_info "  ./scripts/update_configs.sh -h     # Help information"
             ;;
         *)
-            print_error "未知选项: $1"
-            show_help
+            print_error "Unknown option: $1"
+            show_help_info
             exit 1
             ;;
     esac
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 

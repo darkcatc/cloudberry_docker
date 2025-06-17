@@ -1,73 +1,73 @@
 #!/bin/bash
-# HashData Lightning 2.0 环境完全清理脚本
-# 作者: Vance Chen
+# HashData Lightning 2.0 Environment Full Cleanup Script
+# Author: Vance Chen
 # 
-# 功能说明:
-# - 删除所有 HashData 相关的 Docker 镜像 (约 7-8GB)
-# - 停止并删除所有集群容器
-# - 清理 Docker 网络和构建缓存
-# - 不删除 Docker 卷中的数据（数据清理请使用 destroy.sh）
+# Features:
+# - Delete all HashData-related Docker images (approx. 7-8GB)
+# - Stop and delete all cluster containers
+# - Clean up Docker network and build cache
+# - Does not delete data in Docker volumes (use destroy.sh for data cleanup)
 # 
-# ⚠️  警告:
-# - 此操作会删除构建的 Docker 镜像，重新使用需要重新构建
-# - 此操作不会删除 Docker 卷中的数据，如需删除数据请使用 destroy.sh
-# - 清理后需要重新运行 build.sh 构建镜像
+# ⚠️ Warning:
+# - This operation will delete the built Docker images; rebuilding is required for reuse
+# - This operation does not delete data in Docker volumes; use destroy.sh if data deletion is needed
+# - After cleanup, build.sh needs to be run again to build images
 
 set -euo pipefail
 
-# 脚本目录
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
-# 加载环境变量
+# Load environment variables
 if [ -f "${PROJECT_DIR}/hashdata.env" ]; then
     source "${PROJECT_DIR}/hashdata.env"
 else
-    echo "错误: 未找到环境配置文件 hashdata.env"
+    echo "Error: Environment configuration file hashdata.env not found"
     exit 1
 fi
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[信息]\033[0m $1"
+    echo -e "\033[32m[INFO]\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[警告]\033[0m $1"
+    echo -e "\033[33m[WARNING]\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[错误]\033[0m $1"
+    echo -e "\033[31m[ERROR]\033[0m $1"
 }
 
-# 确认清理操作
+# Confirm cleanup operation
 confirm_cleanup() {
-    print_error "⚠️  警告: 此操作将完全清理 HashData Lightning 2.0 环境！"
-    print_warning "🗑️  将要删除的内容："
-    echo "    • 停止并删除所有集群容器"
-    echo "    • 删除 Docker 镜像 (约 7-8GB 存储空间)"
-    echo "    • 删除 Docker 网络"
+    print_error "⚠️  Warning: This operation will completely clean up the HashData Lightning 2.0 environment!"
+    print_warning "🗑️  Content to be deleted:"
+    echo "    • Stop and delete all cluster containers"
+    echo "    • Delete Docker images (approx. 7-8GB storage space)"
+    echo "    • Delete Docker network"
 
-    echo "    • 清理 Docker 构建缓存"
+    echo "    • Clean Docker build cache"
     echo ""
-    print_warning "💡 注意事项："
-    echo "    • Docker 卷中的数据不会被删除 (如需删除请用 destroy.sh)"
-    echo "    • 清理后需要重新运行 build.sh 构建镜像"
-    echo "    • 重新构建镜像需要重新下载 HashData 安装包"
+    print_warning "💡 Notes:"
+    echo "    • Data in Docker volumes will not be deleted (use destroy.sh if deletion is needed)"
+    echo "    • After cleanup, build.sh needs to be run again to build images"
+    echo "    • Rebuilding images requires re-downloading the HashData installation package"
     echo ""
     
-    read -p "确认执行完全清理操作？请输入 'yes' 确认: " -r
+    read -p "Confirm full cleanup operation? Please enter 'yes' to confirm: " -r
     echo
     
     if [[ ! $REPLY == "yes" ]]; then
-        print_info "清理操作已取消"
+        print_info "Cleanup operation cancelled"
         exit 0
     fi
 }
 
-# 停止并删除容器
+# Stop and delete containers
 cleanup_containers() {
-    print_info "清理容器..."
+    print_info "Cleaning up containers..."
     
     local containers=(
         "hashdata-master"
@@ -77,18 +77,18 @@ cleanup_containers() {
     
     for container in "${containers[@]}"; do
         if docker ps -a --filter "name=${container}" --format "{{.Names}}" | grep -q "${container}"; then
-            print_info "停止并删除容器: ${container}"
+            print_info "Stopping and deleting container: ${container}"
             docker stop "${container}" 2>/dev/null || true
             docker rm "${container}" 2>/dev/null || true
         fi
     done
 }
 
-# 删除镜像
+# Delete images
 cleanup_images() {
-    print_info "清理镜像..."
+    print_info "Cleaning up images..."
     
-    # 删除项目镜像
+    # Delete project images
     local images=(
         "${IMAGE_NAME}:${IMAGE_TAG}"
         "${IMAGE_NAME}:latest"
@@ -96,76 +96,76 @@ cleanup_images() {
     
     for image in "${images[@]}"; do
         if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "${image}"; then
-            print_info "删除镜像: ${image}"
+            print_info "Deleting image: ${image}"
             docker rmi "${image}" 2>/dev/null || true
         fi
     done
     
-    # 清理悬空镜像
+    # Clean up dangling images
     local dangling_images=$(docker images -f "dangling=true" -q)
     if [ -n "$dangling_images" ]; then
-        print_info "清理悬空镜像..."
+        print_info "Cleaning up dangling images..."
         docker rmi $dangling_images 2>/dev/null || true
     fi
 }
 
-# 清理网络
+# Clean up network
 cleanup_network() {
-    print_info "清理网络..."
+    print_info "Cleaning up network..."
     
     if docker network ls --filter "name=${NETWORK_NAME}" --format "{{.Name}}" | grep -q "${NETWORK_NAME}"; then
-        print_info "删除网络: ${NETWORK_NAME}"
+        print_info "Deleting network: ${NETWORK_NAME}"
         docker network rm "${NETWORK_NAME}" 2>/dev/null || true
     fi
 }
 
 
 
-# 清理 Docker 系统缓存
+# Clean up Docker system cache
 cleanup_docker_cache() {
-    print_info "清理 Docker 系统缓存..."
+    print_info "Cleaning up Docker system cache..."
     
-    # 清理构建缓存
+    # Clean up build cache
     docker builder prune -f 2>/dev/null || true
     
-    # 清理未使用的卷
+    # Clean up unused volumes
     docker volume prune -f 2>/dev/null || true
     
-    # 清理未使用的网络
+    # Clean up unused networks
     docker network prune -f 2>/dev/null || true
 }
 
-# 显示清理结果
+# Show cleanup result
 show_cleanup_result() {
-    print_info "=== 清理完成 ==="
+    print_info "=== Cleanup Complete ==="
     
-    # 检查剩余的相关资源
+    # Check for remaining related resources
     local remaining_containers=$(docker ps -a --filter "name=hashdata-" --format "{{.Names}}")
     local remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "${IMAGE_NAME}" || true)
     local remaining_networks=$(docker network ls --filter "name=${NETWORK_NAME}" --format "{{.Name}}" || true)
     
     if [ -z "$remaining_containers" ] && [ -z "$remaining_images" ] && [ -z "$remaining_networks" ]; then
-        print_info "所有 HashData 相关资源已清理完成"
+        print_info "All HashData related resources have been cleaned up"
     else
-        print_warning "以下资源可能未完全清理:"
-        [ -n "$remaining_containers" ] && echo "  容器: $remaining_containers"
-        [ -n "$remaining_images" ] && echo "  镜像: $remaining_images"
-        [ -n "$remaining_networks" ] && echo "  网络: $remaining_networks"
+        print_warning "The following resources may not have been fully cleaned up:"
+        [ -n "$remaining_containers" ] && echo "  Containers: $remaining_containers"
+        [ -n "$remaining_images" ] && echo "  Images: $remaining_images"
+        [ -n "$remaining_networks" ] && echo "  Networks: $remaining_networks"
     fi
     
-    # 显示 Docker 系统信息
+    # Show Docker system information
     echo
-    print_info "=== 当前 Docker 资源使用情况 ==="
+    print_info "=== Current Docker Resource Usage ==="
     docker system df 2>/dev/null || true
 }
 
-# 主函数
+# Main function
 main() {
-    print_info "=== HashData Lightning 2.0 环境清理 ==="
+    print_info "=== HashData Lightning 2.0 Environment Cleanup ==="
     
     confirm_cleanup
     
-    print_info "开始清理环境..."
+    print_info "Starting environment cleanup..."
     cleanup_containers
     cleanup_images
     cleanup_network
@@ -174,12 +174,12 @@ main() {
     show_cleanup_result
     
     echo
-    print_info "🎉 环境清理完成！"
-    print_info "📋 重新开始的步骤:"
-    print_info "   1. 构建镜像: ./scripts/build.sh"
-    print_info "   2. 初始化集群: ./scripts/init.sh"
-    print_info "   3. 或者查看帮助: cat README.md"
+    print_info "🎉 Environment cleanup complete!"
+    print_info "📋 Steps to restart:"
+    print_info "   1. Build image: ./scripts/build.sh"
+    print_info "   2. Initialize cluster: ./scripts/init.sh"
+    print_info "   3. Or view help: cat README.md"
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 

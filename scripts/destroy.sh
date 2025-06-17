@@ -1,52 +1,52 @@
 #!/bin/bash
-# HashData Lightning 2.0 集群销毁脚本
-# 作者: Vance Chen
-# 警告: 此脚本会删除所有集群数据，包括Docker卷
+# HashData Lightning 2.0 Cluster Destruction Script
+# Author: Vance Chen
+# Warning: This script will delete all cluster data, including Docker volumes
 
 set -euo pipefail
 
-# 脚本目录
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
-# 加载环境变量
+# Load environment variables
 if [ -f "${PROJECT_DIR}/hashdata.env" ]; then
     source "${PROJECT_DIR}/hashdata.env"
 else
-    echo "错误: 未找到环境配置文件 hashdata.env"
+    echo "Error: Environment configuration file hashdata.env not found"
     exit 1
 fi
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[信息]\033[0m $1"
+    echo -e "\033[32m[INFO]\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[警告]\033[0m $1"
+    echo -e "\033[33m[WARNING]\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[错误]\033[0m $1"
+    echo -e "\033[31m[ERROR]\033[0m $1"
 }
 
-# 销毁集群容器
+# Destroy cluster containers
 destroy_cluster() {
-    print_warning "🗑️ 正在销毁 HashData Lightning 2.0 集群容器..."
-    print_warning "这将停止并删除所有集群容器！"
+    print_warning "🗑️ Destroying HashData Lightning 2.0 cluster containers..."
+    print_warning "This will stop and delete all cluster containers!"
     
     cd "${PROJECT_DIR}"
     
-    # 检查是否有相关容器（运行中或停止的）
+    # Check for related containers (running or stopped)
     local all_containers=$(docker ps -a --filter "name=hashdata-" --format "{{.Names}}")
     if [ -z "$all_containers" ]; then
-        print_info "未发现 HashData 相关容器"
+        print_info "No HashData related containers found"
         return 0
     fi
     
-    print_info "发现以下容器: $all_containers"
+    print_info "Found the following containers: $all_containers"
     
-    # 使用 Docker Compose 停止并删除容器
+    # Use Docker Compose to stop and delete containers
     if command -v docker-compose &> /dev/null; then
         docker-compose --env-file hashdata.env down --remove-orphans
     else
@@ -54,16 +54,16 @@ destroy_cluster() {
     fi
     
     if [ $? -eq 0 ]; then
-        print_info "✅ 容器停止和删除成功！"
+        print_info "✅ Containers stopped and deleted successfully!"
     else
-        print_error "❌ Docker Compose 操作失败，尝试强制删除..."
+        print_error "❌ Docker Compose operation failed, attempting to force remove..."
         force_remove_containers
     fi
 }
 
-# 强制删除容器
+# Force remove containers
 force_remove_containers() {
-    print_warning "🔨 强制删除 HashData 容器..."
+    print_warning "🔨 Force removing HashData containers..."
     
     local containers=(
         "hashdata-master"
@@ -73,25 +73,25 @@ force_remove_containers() {
     
     for container in "${containers[@]}"; do
         if docker ps -a --filter "name=${container}" --format "{{.Names}}" | grep -q "${container}"; then
-            print_info "强制删除容器: ${container}"
-            # 先尝试停止，再删除
+            print_info "Force removing container: ${container}"
+            # Try to stop first, then remove
             docker stop "${container}" 2>/dev/null || true
             docker rm -f "${container}" 2>/dev/null || true
         fi
     done
     
-    # 验证容器是否已完全删除
+    # Verify if containers are completely removed
     local remaining_containers=$(docker ps -a --filter "name=hashdata-" --format "{{.Names}}")
     if [ -z "$remaining_containers" ]; then
-        print_info "✅ 所有容器已成功删除"
+        print_info "✅ All containers successfully removed"
     else
-        print_warning "⚠️ 以下容器可能未完全删除: $remaining_containers"
+        print_warning "⚠️ The following containers may not have been completely removed: $remaining_containers"
     fi
 }
 
-# 删除数据卷
+# Remove data volumes
 remove_volumes() {
-    print_warning "删除数据卷..."
+    print_warning "Removing data volumes..."
     
     local volumes=(
         "hashdata_master_data"
@@ -101,79 +101,79 @@ remove_volumes() {
     
     for volume in "${volumes[@]}"; do
         if docker volume ls --filter "name=${volume}" --format "{{.Name}}" | grep -q "${volume}"; then
-            print_info "删除卷: ${volume}"
-            docker volume rm "${volume}" || print_warning "无法删除卷 ${volume}"
+            print_info "Removing volume: ${volume}"
+            docker volume rm "${volume}" || print_warning "Could not remove volume ${volume}"
         fi
     done
 }
 
-# 清理网络
+# Clean up network
 cleanup_network() {
-    print_info "清理网络..."
+    print_info "Cleaning up network..."
     
     if docker network ls --filter "name=${NETWORK_NAME}" --format "{{.Name}}" | grep -q "${NETWORK_NAME}"; then
-        docker network rm "${NETWORK_NAME}" || print_warning "无法删除网络 ${NETWORK_NAME}"
+        docker network rm "${NETWORK_NAME}" || print_warning "Could not remove network ${NETWORK_NAME}"
     fi
 }
 
-# 显示销毁状态
+# Show destruction status
 show_destroy_status() {
-    print_info "=== 销毁状态检查 ==="
+    print_info "=== Destruction Status Check ==="
     
-    # 检查容器状态
+    # Check container status
     local remaining_containers=$(docker ps -a --filter "name=hashdata-" --format "{{.Names}}")
     if [ -z "$remaining_containers" ]; then
-        print_info "✅ 所有 HashData 容器已删除"
+        print_info "✅ All HashData containers have been deleted"
     else
-        print_warning "⚠️ 以下容器仍然存在:"
+        print_warning "⚠️ The following containers still exist:"
         echo "$remaining_containers"
     fi
     
-    # 检查数据卷状态
+    # Check data volume status
     local remaining_volumes=$(docker volume ls --filter "name=hashdata_" --format "{{.Name}}")
     if [ -z "$remaining_volumes" ]; then
-        print_info "✅ 所有 HashData 数据卷已删除"
+        print_info "✅ All HashData data volumes have been deleted"
     else
-        print_warning "⚠️ 以下数据卷仍然存在:"
+        print_warning "⚠️ The following data volumes still exist:"
         echo "$remaining_volumes"
     fi
     
-    # 检查网络状态
+    # Check network status
     if docker network ls --filter "name=${NETWORK_NAME}" --format "{{.Name}}" | grep -q "${NETWORK_NAME}"; then
-        print_warning "⚠️ 网络 ${NETWORK_NAME} 仍然存在"
+        print_warning "⚠️ Network ${NETWORK_NAME} still exists"
     else
-        print_info "✅ 集群网络已删除"
+        print_info "✅ Cluster network has been deleted"
     fi
     
     echo
-    print_info "=== 销毁完成 ==="
-    print_warning "🗑️ 所有集群资源已被删除！"
-    print_info "📋 如需重新部署集群，请运行:"
+    print_info "=== Destruction Complete ==="
+    print_warning "🗑️ All cluster resources have been deleted!"
+    print_info "📋 To redeploy the cluster, please run:"
     print_info "   ./scripts/init.sh"
 }
 
-# 确认销毁
+# Confirm destruction
 confirm_destroy() {
-    print_error "⚠️  警告: 此操作将完全销毁 HashData Lightning 集群！"
-    print_error "🗑️  将要删除的内容："
-    echo "    • 停止并删除所有集群容器"
-    echo "    • 删除所有数据卷 (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)"
-    echo "    • 删除集群网络"
-    echo "    • 所有数据库数据将永久丢失，无法恢复！"
+    print_error "⚠️  Warning: This operation will completely destroy the HashData Lightning cluster!"
+    print_error "🗑️  Content to be deleted:"
+    echo "    • Stop and delete all cluster containers"
+    echo "    • Delete all data volumes (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)"
+    echo "    • Delete cluster network"
+    echo "    • All database data will be permanently lost and cannot be recovered!"
     echo
-    print_error "💀 这是不可逆的操作！"
+    print_error "💀 This is an irreversible operation!"
     echo
-    read -p "请输入 'yes' 确认完全销毁集群: " -r
+    read -p "Please enter 'yes' to confirm complete cluster destruction: " -r
     echo
     if [[ ! $REPLY == "yes" ]]; then
-        print_info "销毁操作已取消"
+        print_info "Destruction operation cancelled"
         exit 0
     fi
 }
 
-# 主函数
+# Main function
 main() {
-    print_info "=== HashData Lightning 2.0 集群销毁 ==="
+    print_info "=== HashData Lightning 2.0 Cluster Destruction ==="
     
     confirm_destroy
     destroy_cluster
@@ -182,8 +182,8 @@ main() {
     show_destroy_status
     
     echo
-    print_warning "💀 集群已完全销毁！"
+    print_warning "💀 Cluster has been completely destroyed!"
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 

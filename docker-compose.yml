@@ -1,9 +1,9 @@
-# HashData Lightning 2.0 集群 Docker Compose 配置
-# 作者: Vance Chen
-# 集群架构: 1 Master + 2 Segment (无 Mirror)
+# HashData Lightning 2.0 Cluster Docker Compose Configuration
+# Author: Vance Chen
+# Cluster Architecture: 1 Master + 2 Segments (No Mirror)
 
 services:
-  # HashData Master 节点
+  # HashData Master Node
   hashdata-master:
     container_name: hashdata-master
     image: ${IMAGE_NAME}:${IMAGE_TAG}
@@ -50,7 +50,7 @@ services:
       retries: 3
       start_period: 120s
 
-  # HashData Segment 节点 1
+  # HashData Segment Node 1
   hashdata-segment1:
     container_name: hashdata-segment1
     image: ${IMAGE_NAME}:${IMAGE_TAG}
@@ -93,7 +93,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # HashData Segment 节点 2
+  # HashData Segment Node 2
   hashdata-segment2:
     container_name: hashdata-segment2
     image: ${IMAGE_NAME}:${IMAGE_TAG}
@@ -136,7 +136,7 @@ services:
       timeout: 10s
       retries: 3
 
-# 网络配置
+# Network Configuration
 networks:
   hashdata-network:
     name: ${NETWORK_NAME}
@@ -147,19 +147,19 @@ networks:
         - subnet: ${NETWORK_SUBNET}
           gateway: ${NETWORK_GATEWAY}
 
-# 数据卷配置（纯Docker管理的volume，支持数据持久化）
+# Data Volume Configuration (Docker-managed volumes, supports data persistence)
 volumes:
-  # Master节点数据卷（/data目录 - coordinator实例）
+  # Master node data volume (/data directory - coordinator instance)
   hashdata_master_data:
     name: hashdata_master_data
     driver: local
   
-  # Segment1节点数据卷（/data目录 - primary实例）
+  # Segment1 node data volume (/data directory - primary instance)
   hashdata_segment1_data:
     name: hashdata_segment1_data
     driver: local
   
-  # Segment2节点数据卷（/data目录 - primary实例）
+  # Segment2 node data volume (/data directory - primary instance)
   hashdata_segment2_data:
     name: hashdata_segment2_data
     driver: local 

@@ -1,255 +1,255 @@
-# HashData Lightning 2.0 Docker 集群部署
+# HashData Lightning 2.0 Docker Cluster Deployment
 
-## 项目简介
+## Project Introduction
 
-基于 Docker 和 Docker Compose 的 HashData Lightning 2.0 集群部署解决方案。
-通过Shell实现，只支持Linux的操作系统。
+A HashData Lightning 2.0 cluster deployment solution based on Docker and Docker Compose.
+Implemented via Shell, supports Linux operating systems only.
 
-- **作者**: Vance Chen
-- **HashData 版本**: 2.0.0
-- **基础镜像**: CentOS 9 Stream
-- **集群架构**: 1 Master + 2 Segment (无 Mirror)
-- **存储管理**: Docker 卷管理，智能权限适配
+- **Author**: Vance Chen
+- **HashData Version**: 2.0.0
+- **Base Image**: CentOS 9 Stream
+- **Cluster Architecture**: 1 Master + 2 Segments (No Mirror)
+- **Storage Management**: Docker volume management, smart permission adaptation
 
-## 架构特性
+## Architecture Features
 
-✅ **智能权限适配** - 自动检测并适配不同环境的权限映射  
-✅ **Docker 卷管理** - 数据持久化完全由 Docker 管理，无需手动设置权限  
-✅ **一键部署** - 完整的自动化部署流程  
-✅ **SSH 自动配置** - 自动设置集群间无密码SSH通信  
-✅ **环境隔离** - 每个容器独立的数据存储空间  
+✅ **Smart Permission Adaptation** - Automatically detects and adapts to permission mappings in different environments  
+✅ **Docker Volume Management** - Data persistence is fully managed by Docker, no need to manually set permissions  
+✅ **One-Click Deployment** - Complete automated deployment process  
+✅ **Automatic SSH Configuration** - Automatically sets up passwordless SSH communication between cluster nodes  
+✅ **Environment Isolation** - Independent data storage space for each container  
 
-## 项目结构
+## Project Structure
 
 ```
 hashdata_docker/
-├── README.md                   # 项目说明文档
-├── hashdata.env                # 环境变量配置文件
-├── docker-compose.yml          # Docker Compose 主配置文件
-├── Dockerfile                  # Docker 镜像构建文件
-├── arch.png                    # 架构图
-├── scripts/                    # 脚本目录
-│   ├── build.sh               # 镜像构建脚本
-│   ├── init.sh                # 集群初始化脚本（首次部署）
-│   ├── start.sh               # 集群启动脚本（日常使用）
-│   ├── stop.sh                # 集群停止脚本（保留数据）
-│   ├── destroy.sh             # 集群销毁脚本（删除所有数据）
-│   ├── clean.sh               # 环境清理脚本
-│   └── update_configs.sh      # 配置更新工具
-└── configs/                    # 配置文件目录
-    ├── cluster/               # 集群配置
-    │   ├── gpinitsystem.conf  # GP 初始化配置
-    │   └── hosts              # 主机列表
-    ├── system/                # 系统配置
-    │   ├── sysctl.conf        # 内核参数
-    │   └── limits.conf        # 系统限制
-    └── init/                  # 初始化脚本
-        ├── init_cluster.sh    # 集群初始化脚本
-        └── setup_user.sh      # 用户设置脚本
+├── README.md                   # Project documentation
+├── hashdata.env                # Environment variable configuration file
+├── docker-compose.yml          # Main Docker Compose configuration file
+├── Dockerfile                  # Docker image build file
+├── arch.png                    # Architecture diagram
+├── scripts/                    # Scripts directory
+│   ├── build.sh               # Image build script
+│   ├── init.sh                # Cluster initialization script (first deployment)
+│   ├── start.sh               # Cluster start script (daily use)
+│   ├── stop.sh                # Cluster stop script (retains data)
+│   ├── destroy.sh             # Cluster destroy script (deletes all data)
+│   ├── clean.sh               # Environment cleanup script
+│   └── update_configs.sh      # Configuration update utility
+└── configs/                    # Configuration files directory
+    ├── cluster/               # Cluster configuration
+    │   ├── gpinitsystem.conf  # GP initialization configuration
+    │   └── hosts              # Host list
+    ├── system/                # System configuration
+    │   ├── sysctl.conf        # Kernel parameters
+    │   └── limits.conf        # System limits
+    └── init/                  # Initialization scripts
+        ├── init_cluster.sh    # Cluster initialization script
+        └── setup_user.sh      # User setup script
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 构建镜像
+### 1. Build Image
 
 ```bash
-# 构建 HashData Docker 镜像 (约 5-6GB，需要网络下载)
+# Build HashData Docker image (approx. 5-6GB, network download required)
 ./scripts/build.sh
 ```
 
-**注意**: 首次构建需要下载约 1500MB+ 的 HashData 安装包，预计耗时 10-30 分钟。
+**Note**: First build requires downloading the HashData installation package (approx. 1500MB+), estimated time 10-30 minutes.
 
-### 2. 初始化集群（首次部署）
+### 2. Initialize Cluster (First Deployment)
 
 ```bash
-# 初始化集群，创建 Docker 卷和配置数据库
+# Initialize cluster, create Docker volumes, and configure the database
 ./scripts/init.sh
 ```
 
-**注意**: 此脚本仅用于首次初始化，有重复执行检查机制。
+**Note**: This script is only for initial setup and has a re-execution check mechanism.
 
-### 3. 日常启停操作
+### 3. Daily Start/Stop Operations
 
 ```bash
-# 启动已初始化的集群
+# Start an initialized cluster
 ./scripts/start.sh
 
-# 停止集群（保留数据）
+# Stop the cluster (retains data)
 ./scripts/stop.sh
 ```
 
-### 4. 连接数据库
+### 4. Connect to Database
 
 ```bash
-# 连接到 Master 节点
+# Connect to Master node
 docker exec -it hashdata-master su - gpadmin -c "psql"
 
-# 查看集群状态
+# View cluster status
 docker exec -it hashdata-master su - gpadmin -c "psql -c 'SELECT * FROM gp_segment_configuration;'"
 ```
 
-### 5. 完全清理（谨慎使用）
+### 5. Complete Cleanup (Use with Caution)
 
 ```bash
-# 销毁集群和所有数据（需要输入 'yes' 确认）
+# Destroy cluster and all data (requires 'yes' confirmation)
 ./scripts/destroy.sh
 
-# 清理Docker镜像和容器（需要输入 'yes' 确认）
+# Clean Docker images and containers (requires 'yes' confirmation)
 ./scripts/clean.sh
 ```
 
-**⚠️ 警告**: 
-- `destroy.sh` 会删除所有集群数据，无法恢复
-- `clean.sh` 会删除 Docker 镜像，重新使用需要重新构建
+**⚠️ Warning**: 
+- `destroy.sh` will delete all cluster data, which cannot be recovered
+- `clean.sh` will delete Docker images; rebuilding is required for reuse
 
-## 脚本说明
+## Script Descriptions
 
-| 脚本 | 用途 | 使用场景 | 安全级别 |
+| Script | Purpose | Usage Scenario | Safety Level |
 |------|------|----------|----------|
-| `build.sh` | 构建Docker镜像 | 首次构建或更新镜像 | 📦 需要网络下载 |
-| `init.sh` | 集群初始化 | 首次部署，有重复执行检查 | 🛡️ 防重复初始化 |
-| `start.sh` | 启动集群 | 日常启动已初始化的集群 | ✅ 安全操作 |
-| `stop.sh` | 停止集群 | 日常停止，保留数据 | ✅ 安全操作 |
-| `destroy.sh` | 销毁集群 | 完全删除集群和数据 | ⚠️ 需要确认，不可恢复 |
-| `clean.sh` | 清理环境 | 清理Docker镜像和容器 | ⚠️ 需要确认，删除镜像 |
+| `build.sh` | Build Docker image | First build or image update | 📦 Network download required |
+| `init.sh` | Initialize cluster | First deployment, has re-execution check | 🛡️ Prevents re-initialization |
+| `start.sh` | Start cluster | Daily start of an initialized cluster | ✅ Safe operation |
+| `stop.sh` | Stop cluster | Daily stop, retains data | ✅ Safe operation |
+| `destroy.sh` | Destroy cluster | Completely delete cluster and data | ⚠️ Confirmation required, irreversible |
+| `clean.sh` | Clean environment | Clean Docker images and containers | ⚠️ Confirmation required, deletes images |
 
-### 脚本安全机制
+### Script Safety Mechanisms
 
-- **防重复初始化**: `init.sh` 会检查现有集群，防止重复初始化
-- **确认机制**: `destroy.sh` 和 `clean.sh` 需要输入 'yes' 确认
-- **资源提醒**: `build.sh` 会提醒网络和磁盘空间要求
-- **操作指导**: 所有脚本都提供详细的下一步操作建议
+- **Re-initialization Prevention**: `init.sh` checks for existing clusters to prevent re-initialization
+- **Confirmation Mechanism**: `destroy.sh` and `clean.sh` require 'yes' confirmation
+- **Resource Reminder**: `build.sh` reminds about network and disk space requirements
+- **Operational Guidance**: All scripts provide detailed next-step recommendations
 
-### 推荐操作流程
+### Recommended Workflow
 
 ```
-首次部署:
-build.sh → init.sh → 集群就绪
+First Deployment:
+build.sh → init.sh → Cluster Ready
 
-日常使用:
+Daily Use:
 start.sh ⇄ stop.sh
 
-重新初始化:
+Re-initialize:
 destroy.sh → init.sh
 
-完全清理:
+Complete Cleanup:
 destroy.sh → clean.sh → build.sh → init.sh
 ```
 
-## 配置说明
+## Configuration Details
 
-### 环境变量配置 (hashdata.env)
+### Environment Variable Configuration (hashdata.env)
 
-- `HASHDATA_VERSION`: HashData 版本号
-- `NETWORK_SUBNET`: 网络子网
-- `MASTER_PORT`: Master 节点端口
-- `SEGMENT_PORT_BASE`: Segment 节点起始端口
+- `HASHDATA_VERSION`: HashData version number
+- `NETWORK_SUBNET`: Network subnet
+- `MASTER_PORT`: Master node port
+- `SEGMENT_PORT_BASE`: Segment node starting port
 
-### 集群配置
+### Cluster Configuration
 
-- **Master 节点**: 1 个 (hashdata-master)
-- **Segment 节点**: 2 个 (hashdata-segment1, hashdata-segment2)
-- **网络模式**: Bridge 网络，固定 IP 地址
-- **数据持久化**: Docker 卷管理 (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)
+- **Master Node**: 1 (hashdata-master)
+- **Segment Nodes**: 2 (hashdata-segment1, hashdata-segment2)
+- **Network Mode**: Bridge network, fixed IP addresses
+- **Data Persistence**: Docker volume management (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)
 
-## 数据管理
+## Data Management
 
-### Docker 卷存储
+### Docker Volume Storage
 
-本项目采用 Docker 卷完全管理数据持久化：
+This project uses Docker volumes to fully manage data persistence:
 
-- **Master 数据**: `hashdata_master_data` → `/data/coordinator/`
-- **Segment1 数据**: `hashdata_segment1_data` → `/data/primary/`
-- **Segment2 数据**: `hashdata_segment2_data` → `/data/primary/`
+- **Master Data**: `hashdata_master_data` → `/data/coordinator/`
+- **Segment1 Data**: `hashdata_segment1_data` → `/data/primary/`
+- **Segment2 Data**: `hashdata_segment2_data` → `/data/primary/`
 
-### 数据位置
+### Data Location
 
-Docker 卷实际存储位置：
+Actual Docker volume storage location:
 ```
 /var/lib/docker/volumes/hashdata_master_data/_data
 /var/lib/docker/volumes/hashdata_segment1_data/_data
 /var/lib/docker/volumes/hashdata_segment2_data/_data
 ```
 
-### 数据备份
+### Data Backup
 
 ```bash
-# 查看卷信息
+# View volume information
 docker volume ls | grep hashdata
 
-# 备份数据卷
+# Backup data volume
 docker run --rm -v hashdata_master_data:/data -v $(pwd):/backup alpine tar czf /backup/master_backup.tar.gz /data
 
-# 恢复数据卷
+# Restore data volume
 docker run --rm -v hashdata_master_data:/data -v $(pwd):/backup alpine tar xzf /backup/master_backup.tar.gz -C /
 ```
 
-## 配置更新工具
+## Configuration Update Utility
 
-使用 `update_configs.sh` 工具可以在不重建镜像的情况下更新配置：
+Use the `update_configs.sh` utility to update configurations without rebuilding the image:
 
 ```bash
-# 更新配置并重启指定容器
+# Update configuration and restart the specified container
 ./scripts/update_configs.sh -r hashdata-master
 
-# 查看容器日志
+# View container logs
 ./scripts/update_configs.sh -l hashdata-master
 ```
 
-## 故障排除
+## Troubleshooting
 
-### 常见问题
+### Common Issues
 
-1. **端口冲突**: 检查端口 15432 是否被占用
-2. **内存不足**: 确保系统有足够的可用内存
-3. **网络问题**: 检查 Docker 网络配置
-4. **SSH连接失败**: 容器间SSH自动配置失败
+1. **Port Conflict**: Check if port 15432 is occupied
+2. **Insufficient Memory**: Ensure the system has enough available memory
+3. **Network Issues**: Check Docker network configuration
+4. **SSH Connection Failure**: Automatic SSH configuration between containers failed
 
-### 智能权限适配
+### Smart Permission Adaptation
 
-项目采用智能权限检测机制，自动适应不同环境：
+The project uses a smart permission detection mechanism to automatically adapt to different environments:
 
-- **自动检测**: 容器启动时自动检测挂载目录权限
-- **动态适配**: 使用检测到的 UID/GID 创建 gpadmin 用户
-- **跨平台**: 支持 WSL、Linux、macOS 等平台
-- **免配置**: 无需手动修改宿主机目录权限
+- **Automatic Detection**: Automatically detects permissions of mounted directories at container startup
+- **Dynamic Adaptation**: Creates the gpadmin user with the detected UID/GID
+- **Cross-Platform**: Supports WSL, Linux, macOS, etc.
+- **Configuration-Free**: No need to manually modify host directory permissions
 
-### 查看日志
+### View Logs
 
 ```bash
-# 查看容器日志
+# View container logs
 docker logs hashdata-master
 docker logs hashdata-segment1
 docker logs hashdata-segment2
 
-# 查看数据库日志
+# View database logs
 docker exec hashdata-master find /data -name "*.log" -type f
 ```
 
-### 重新初始化
+### Re-initialize
 
-如果需要重新初始化集群：
+If you need to re-initialize the cluster:
 
 ```bash
-# 1. 销毁现有集群
+# 1. Destroy the existing cluster
 ./scripts/destroy.sh
 
-# 2. 重新初始化
+# 2. Re-initialize
 ./scripts/init.sh
 ```
 
-## 注意事项
+## Important Notes
 
-1. 确保 Docker 和 Docker Compose 已正确安装
-2. 建议分配至少 8GB 内存给 Docker
-3. 首次初始化需要下载 HashData 安装包，请耐心等待
-4. `destroy.sh` 会删除所有数据，请谨慎使用
-5. 集群初始化完成后，默认数据库用户为 `gpadmin`，密码为 `Hashdata@123`
+1. Ensure Docker and Docker Compose are correctly installed
+2. It is recommended to allocate at least 8GB of memory to Docker
+3. The first initialization requires downloading the HashData installation package, please be patient
+4. `destroy.sh` will delete all data, please use with caution
+5. After cluster initialization, the default database user is `gpadmin` with password `Hashdata@123`
 
-## 贡献指南
+## Contribution Guidelines
 
-欢迎提交 Issue 和 Pull Request 来改进这个项目。
+Feel free to submit Issues and Pull Requests to improve this project.
 
-## 许可证
+## License
 
 MIT License 

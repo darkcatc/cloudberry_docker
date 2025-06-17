@@ -1,74 +1,74 @@
 #!/bin/bash
-# HashData Lightning 2.0 集群初始化脚本
-# 作者: Vance Chen
+# HashData Lightning 2.0 Cluster Initialization Script
+# Author: Vance Chen
 # 
-# 功能说明:
-# - 首次初始化 HashData Lightning 集群
-# - 创建 Docker 卷用于数据持久化
-# - 自动配置集群间 SSH 通信
-# - 初始化数据库和用户权限
+# Features:
+# - Initialize HashData Lightning cluster for the first time
+# - Create Docker volumes for data persistence
+# - Automatically configure SSH communication between cluster nodes
+# - Initialize database and user permissions
 # 
-# ⚠️  重要提醒:
-# - 此脚本仅用于首次初始化，不应重复执行
-# - 如需重新初始化，请先运行 ./scripts/destroy.sh 清理现有集群
-# - 初始化过程需要 3-10 分钟，请耐心等待
+# ⚠️ Important Notes:
+# - This script is for initial setup only and should not be run repeatedly
+# - To re-initialize, first run ./scripts/destroy.sh to clean up the existing cluster
+# - Initialization takes 3-10 minutes, please be patient
 
 set -euo pipefail
 
-# 脚本目录
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
-# 加载环境变量
+# Load environment variables
 if [ -f "${PROJECT_DIR}/hashdata.env" ]; then
     source "${PROJECT_DIR}/hashdata.env"
 else
-    echo "错误: 未找到环境配置文件 hashdata.env"
+    echo "Error: Environment configuration file hashdata.env not found"
     exit 1
 fi
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[信息]\033[0m $1"
+    echo -e "\033[32m[INFO]\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[警告]\033[0m $1"
+    echo -e "\033[33m[WARNING]\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[错误]\033[0m $1"
+    echo -e "\033[31m[ERROR]\033[0m $1"
 }
 
-# 检查依赖
+# Check dependencies
 check_dependencies() {
-    # 检查 Docker
+    # Check Docker
     if ! command -v docker &> /dev/null; then
-        print_error "Docker 未安装，请先安装 Docker"
+        print_error "Docker is not installed. Please install Docker first."
         exit 1
     fi
     
-    # 检查 Docker Compose
+    # Check Docker Compose
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        print_error "Docker Compose 未安装，请先安装 Docker Compose"
+        print_error "Docker Compose is not installed. Please install Docker Compose first."
         exit 1
     fi
     
-    print_info "依赖检查通过"
+    print_info "Dependency check passed"
 }
 
-# 检查镜像是否存在
+# Check if image exists
 check_image() {
     if ! docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" &> /dev/null; then
-        print_warning "镜像 ${IMAGE_NAME}:${IMAGE_TAG} 不存在"
-        print_info "正在构建镜像..."
+        print_warning "Image ${IMAGE_NAME}:${IMAGE_TAG} does not exist"
+        print_info "Building image..."
         "${SCRIPT_DIR}/build.sh"
     else
-        print_info "镜像 ${IMAGE_NAME}:${IMAGE_TAG} 已存在"
+        print_info "Image ${IMAGE_NAME}:${IMAGE_TAG} already exists"
     fi
 }
 
-# 检查集群是否已存在
+# Check if cluster already exists
 check_cluster_exists() {
     local volumes=(
         "hashdata_master_data"
@@ -84,46 +84,46 @@ check_cluster_exists() {
     done
     
     if [ ${#existing_volumes[@]} -gt 0 ]; then
-        print_error "⚠️  检测到已存在的集群数据卷！"
-        print_error "现有卷: ${existing_volumes[*]}"
+        print_error "⚠️  Existing cluster data volumes detected!"
+        print_error "Existing volumes: ${existing_volumes[*]}"
         print_error ""
-        print_error "此脚本仅用于首次初始化，不应重复执行。"
-        print_error "如需重新初始化集群，请先运行以下命令清理现有集群:"
+        print_error "This script is for initial setup only and should not be run repeatedly."
+        print_error "To re-initialize the cluster, first run the following command to clean up the existing cluster:"
         print_error "  ./scripts/destroy.sh"
         print_error ""
-        print_error "如需启动现有集群，请使用:"
+        print_error "To start an existing cluster, use:"
         print_error "  ./scripts/start.sh"
         exit 1
     fi
     
-    print_info "✅ 未检测到现有集群，可以进行初始化"
+    print_info "✅ No existing cluster detected, initialization can proceed"
 }
 
-# 检查端口是否被占用
+# Check if ports are in use
 check_ports() {
     local ports=("${MASTER_PORT}" "${SEGMENT_PORT_BASE}" "$((SEGMENT_PORT_BASE + 1))")
     
     for port in "${ports[@]}"; do
         if netstat -tuln 2>/dev/null | grep -q ":${port} "; then
-            print_error "❌ 端口 ${port} 已被占用"
-            print_error "请修改配置或停止占用端口的进程"
+            print_error "❌ Port ${port} is already in use"
+            print_error "Please change the configuration or stop the process using the port"
             exit 1
         fi
     done
     
-    print_info "✅ 端口检查通过"
+    print_info "✅ Port check passed"
 }
 
 
 
-# 启动集群容器
+# Start cluster containers
 start_cluster() {
-    print_info "🚀 启动 HashData Lightning 2.0 集群容器..."
-    print_info "📦 正在创建 Docker 卷和网络..."
+    print_info "🚀 Starting HashData Lightning 2.0 cluster containers..."
+    print_info "📦 Creating Docker volumes and network..."
     
     cd "${PROJECT_DIR}"
     
-    # 使用环境变量文件启动
+    # Start using environment variable file
     if command -v docker-compose &> /dev/null; then
         docker-compose --env-file hashdata.env up -d
     else
@@ -131,31 +131,31 @@ start_cluster() {
     fi
     
     if [ $? -eq 0 ]; then
-        print_info "✅ 集群容器启动成功！"
-        print_info "📋 创建的 Docker 卷:"
-        print_info "   - hashdata_master_data (Master 节点数据)"
-        print_info "   - hashdata_segment1_data (Segment1 节点数据)"  
-        print_info "   - hashdata_segment2_data (Segment2 节点数据)"
+        print_info "✅ Cluster containers started successfully!"
+        print_info "📋 Created Docker volumes:"
+        print_info "   - hashdata_master_data (Master node data)"
+        print_info "   - hashdata_segment1_data (Segment1 node data)"  
+        print_info "   - hashdata_segment2_data (Segment2 node data)"
     else
-        print_error "❌ 集群启动失败"
-        print_error "请检查 Docker 服务状态和端口占用情况"
+        print_error "❌ Cluster startup failed"
+        print_error "Please check Docker service status and port usage"
         exit 1
     fi
 }
 
-# 等待服务初始化完成
+# Wait for services to initialize
 wait_for_services() {
-    print_info "⏳ 等待集群初始化完成..."
-    print_info "🔧 正在进行: SSH配置、用户创建、数据库初始化"
-    print_warning "⏰ 此过程需要 3-10 分钟，请耐心等待"
+    print_info "⏳ Waiting for cluster initialization to complete..."
+    print_info "🔧 In progress: SSH configuration, user creation, database initialization"
+    print_warning "⏰ This process takes 3-10 minutes, please be patient"
     echo
     
-    local max_wait=300  # 最大等待时间（秒）
+    local max_wait=300  # Maximum wait time (seconds)
     local wait_time=0
     
     while [ $wait_time -lt $max_wait ]; do
         if docker exec hashdata-master su - gpadmin -c "psql -c 'SELECT 1'" &> /dev/null; then
-            print_info "✅ HashData 集群初始化完成，数据库已就绪！"
+            print_info "✅ HashData cluster initialized, database is ready!"
             return 0
         fi
         
@@ -165,43 +165,43 @@ wait_for_services() {
     done
     
     echo
-    print_warning "⚠️  等待超时，集群可能仍在初始化中"
-    print_info "💡 建议操作:"
-    print_info "   1. 查看容器日志: docker logs hashdata-master"
-    print_info "   2. 检查容器状态: docker ps"
-    print_info "   3. 等待几分钟后重试连接"
+    print_warning "⚠️  Wait timeout, cluster may still be initializing"
+    print_info "💡 Suggested actions:"
+    print_info "   1. View container logs: docker logs hashdata-master"
+    print_info "   2. Check container status: docker ps"
+    print_info "   3. Wait a few minutes and try connecting again"
 }
 
-# 显示集群状态
+# Show cluster status
 show_cluster_status() {
-    print_info "=== 集群状态 ==="
+    print_info "=== Cluster Status ==="
     
-    # 显示容器状态
+    # Display container status
     docker ps --filter "name=hashdata-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     
     echo
-    print_info "=== 集群信息 ==="
-    print_info "Master 节点: http://localhost:${MASTER_PORT}"
-    print_info "网络子网: ${NETWORK_SUBNET}"
-    print_info "数据存储: Docker 管理的卷 (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)"
-    print_info "日志查看: docker logs <容器名> 或数据目录中的HashData日志文件"
+    print_info "=== Cluster Information ==="
+    print_info "Master node: http://localhost:${MASTER_PORT}"
+    print_info "Network subnet: ${NETWORK_SUBNET}"
+    print_info "Data storage: Docker managed volumes (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)"
+    print_info "View logs: docker logs <container_name> or HashData log files in the data directory"
     
     echo
-    print_info "=== 连接方式 ==="
-    echo "  # 连接到 Master 节点"
+    print_info "=== Connection Methods ==="
+    echo "  # Connect to Master node"
     echo "  docker exec -it hashdata-master su - gpadmin -c \"psql\""
     echo ""
-    echo "  # 查看集群配置"
+    echo "  # View cluster configuration"
     echo "  docker exec -it hashdata-master su - gpadmin -c \"psql -c 'SELECT * FROM gp_segment_configuration;'\""
     echo ""
-    echo "  # 查看系统日志"
+    echo "  # View system logs"
     echo "  docker logs hashdata-master"
 }
 
-# 主函数
+# Main function
 main() {
-    print_info "=== HashData Lightning 2.0 集群初始化 ==="
-    print_warning "⚠️  此脚本仅用于首次初始化集群"
+    print_info "=== HashData Lightning 2.0 Cluster Initialization ==="
+    print_warning "⚠️  This script is for initial cluster setup only"
     echo
     
     check_dependencies
@@ -213,13 +213,13 @@ main() {
     show_cluster_status
     
     echo
-    print_info "🎉 集群初始化完成！"
-    print_info "📋 后续操作指南:"
-    print_info "   • 启动集群: ./scripts/start.sh"
-    print_info "   • 停止集群: ./scripts/stop.sh (保留数据)"
-    print_info "   • 销毁集群: ./scripts/destroy.sh (删除所有数据)"
-    print_info "   • 连接数据库: docker exec -it hashdata-master su - gpadmin -c 'psql'"
+    print_info "🎉 Cluster initialization complete!"
+    print_info "📋 Next Steps Guide:"
+    print_info "   • Start cluster: ./scripts/start.sh"
+    print_info "   • Stop cluster: ./scripts/stop.sh (preserves data)"
+    print_info "   • Destroy cluster: ./scripts/destroy.sh (deletes all data)"
+    print_info "   • Connect to database: docker exec -it hashdata-master su - gpadmin -c 'psql'"
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 

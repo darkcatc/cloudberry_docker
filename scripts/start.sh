@@ -1,36 +1,36 @@
 #!/bin/bash
-# HashData Lightning 2.0 集群启动脚本
-# 作者: Vance Chen
-# 用途: 启动已初始化的集群（重启数据库服务）
+# HashData Lightning 2.0 Cluster Startup Script
+# Author: Vance Chen
+# Purpose: Start an initialized cluster (restart database service)
 
 set -euo pipefail
 
-# 脚本目录
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
-# 加载环境变量
+# Load environment variables
 if [ -f "${PROJECT_DIR}/hashdata.env" ]; then
     source "${PROJECT_DIR}/hashdata.env"
 else
-    echo "错误: 未找到环境配置文件 hashdata.env"
+    echo "Error: Environment configuration file hashdata.env not found"
     exit 1
 fi
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[信息]\033[0m $1"
+    echo -e "\033[32m[INFO]\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[警告]\033[0m $1"
+    echo -e "\033[33m[WARNING]\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[错误]\033[0m $1"
+    echo -e "\033[31m[ERROR]\033[0m $1"
 }
 
-# 检查集群是否已初始化
+# Check if cluster is initialized
 check_cluster_initialized() {
     local volumes=(
         "hashdata_master_data"
@@ -40,21 +40,21 @@ check_cluster_initialized() {
     
     for volume in "${volumes[@]}"; do
         if ! docker volume ls --filter "name=${volume}" --format "{{.Name}}" | grep -q "${volume}"; then
-            print_error "集群尚未初始化，请先运行: ./scripts/init.sh"
+            print_error "Cluster not initialized, please run: ./scripts/init.sh first"
             exit 1
         fi
     done
     
-    print_info "检测到已初始化的集群"
+    print_info "Initialized cluster detected"
 }
 
-# 启动容器
+# Start containers
 start_containers() {
-    print_info "启动集群容器..."
+    print_info "Starting cluster containers..."
     
     cd "${PROJECT_DIR}"
     
-    # 使用环境变量文件启动
+    # Start using environment variable file
     if command -v docker-compose &> /dev/null; then
         docker-compose --env-file hashdata.env up -d
     else
@@ -62,43 +62,43 @@ start_containers() {
     fi
     
     if [ $? -eq 0 ]; then
-        print_info "容器启动成功！"
+        print_info "Containers started successfully!"
     else
-        print_error "容器启动失败"
+        print_error "Container startup failed"
         exit 1
     fi
 }
 
-# 启动数据库服务
+# Start database services
 start_database_services() {
-    print_info "启动数据库服务..."
+    print_info "Starting database services..."
     
-    # 等待容器启动
+    # Wait for containers to start
     sleep 10
     
-    # 在master节点启动数据库
-    print_info "启动Master节点数据库..."
+    # Start database on master node
+    print_info "Starting Master node database..."
     docker exec hashdata-master su - gpadmin -c "gpstart -a" || {
-        print_warning "数据库启动失败，可能需要恢复，正在尝试恢复..."
+        print_warning "Database startup failed, recovery might be needed, attempting recovery..."
         docker exec hashdata-master su - gpadmin -c "gpstart -a -M smart" || {
-            print_error "数据库启动失败，请检查日志: docker logs hashdata-master"
+            print_error "Database startup failed, please check logs: docker logs hashdata-master"
             exit 1
         }
     }
     
-    print_info "数据库服务启动完成"
+    print_info "Database services started successfully"
 }
 
-# 等待服务就绪
+# Wait for services to be ready
 wait_for_services() {
-    print_info "等待服务就绪..."
+    print_info "Waiting for services to be ready..."
     
-    local max_wait=60  # 最大等待时间（秒）
+    local max_wait=60  # Maximum wait time (seconds)
     local wait_time=0
     
     while [ $wait_time -lt $max_wait ]; do
         if docker exec hashdata-master su - gpadmin -c "psql -c 'SELECT 1'" &> /dev/null; then
-            print_info "数据库服务已就绪！"
+            print_info "Database service is ready!"
             return 0
         fi
         
@@ -107,26 +107,26 @@ wait_for_services() {
         wait_time=$((wait_time + 5))
     done
     
-    print_warning "等待超时，服务可能仍在启动中"
-    print_info "可以使用 'docker logs hashdata-master' 查看详细日志"
+    print_warning "Wait timeout, service may still be starting"
+    print_info "You can use 'docker logs hashdata-master' to view detailed logs"
 }
 
-# 显示集群状态
+# Show cluster status
 show_cluster_status() {
-    print_info "=== 集群状态 ==="
+    print_info "=== Cluster Status ==="
     
-    # 显示容器状态
+    # Show container status
     docker ps --filter "name=hashdata-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     
     echo
-    print_info "=== 连接信息 ==="
-    print_info "Master 节点: localhost:${MASTER_PORT}"
-    print_info "连接命令: docker exec -it hashdata-master su - gpadmin -c \"psql\""
+    print_info "=== Connection Information ==="
+    print_info "Master node: localhost:${MASTER_PORT}"
+    print_info "Connection command: docker exec -it hashdata-master su - gpadmin -c \"psql\""
 }
 
-# 主函数
+# Main function
 main() {
-    print_info "=== 启动 HashData Lightning 2.0 集群 ==="
+    print_info "=== Starting HashData Lightning 2.0 Cluster ==="
     
     check_cluster_initialized
     start_containers
@@ -134,8 +134,8 @@ main() {
     wait_for_services
     show_cluster_status
     
-    print_info "集群启动完成！"
+    print_info "Cluster startup complete!"
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 

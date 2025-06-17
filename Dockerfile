@@ -1,23 +1,23 @@
-# HashData Lightning 2.0 Docker 镜像
-# 作者: Vance Chen
-# 基础镜像: CentOS 9 Stream
+# HashData Lightning 2.0 Docker Image
+# Author: Vance Chen
+# Base Image: CentOS 9 Stream
 
 FROM quay.io/centos/centos:stream9
 
-# 设置镜像标签
+# Set image labels
 LABEL maintainer="Vance Chen"
 LABEL version="2.0.0"
 LABEL description="HashData Lightning 2.0 (CloudberryDB) on CentOS 9 Stream"
 
-# 设置环境变量
+# Set environment variables
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 ENV TIMEZONE=Asia/Shanghai
 
-# 动态检测挂载目录的 UID/GID 并创建 gpadmin 用户
-# 这个步骤将在容器启动时执行，以适应不同环境的权限映射
+# Dynamically detect UID/GID of mounted directories and create gpadmin user
+# This step will be executed at container startup to adapt to permission mappings in different environments
 
-# 配置国内 dnf 源并安装基础包
+# Configure domestic dnf sources and install base packages
 RUN dnf update -y && \
     dnf install -y epel-release && \
     dnf config-manager --set-enabled crb && \
@@ -31,69 +31,69 @@ RUN dnf update -y && \
         initscripts systemd-sysv iputils xfsprogs util-linux && \
     dnf clean all
 
-# 配置时区
+# Configure timezone
 RUN ln -sf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
     echo "${TIMEZONE}" > /etc/timezone
 
-# 下载并安装 HashData Lightning 2.0
+# Download and install HashData Lightning 2.0
 ARG HASHDATA_DOWNLOAD_URL
 RUN wget -O /tmp/hashdata-lightning.rpm "${HASHDATA_DOWNLOAD_URL}" && \
     dnf install -y /tmp/hashdata-lightning.rpm && \
     rm -f /tmp/hashdata-lightning.rpm
 
-# 配置 root 密码
+# Configure root password
 ARG ROOT_PASSWORD
 ARG GPADMIN_PASSWORD
 RUN echo "root:${ROOT_PASSWORD}" | chpasswd && \
     echo "root ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-# 配置 SSH
+# Configure SSH
 RUN ssh-keygen -A && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-# SSH 密钥配置将在初始化时根据动态 UID/GID 进行
+# SSH key configuration will be done at initialization based on dynamic UID/GID
 
-# 设置动态链接库路径
+# Set dynamic linker library path
 RUN echo "/usr/local/lib" >> /etc/ld.so.conf && \
     echo "/usr/local/lib64" >> /etc/ld.so.conf && \
     ldconfig
 
-# 创建基础数据目录（具体的coordinator/primary目录将在运行时根据节点类型创建）
+# Create base data directories (specific coordinator/primary directories will be created at runtime based on node type)
 RUN mkdir -p /data /var/log/hashdata
 
-# 检查 HashData 安装路径（用户创建将在运行时进行）
-RUN echo "检查 HashData 安装路径..." && \
+# Check HashData installation path (user creation will be done at runtime)
+RUN echo "Checking HashData installation path..." && \
     find /usr/local -name "greenplum_path.sh" 2>/dev/null | head -1 > /tmp/gp_path.txt && \
     if [ -s /tmp/gp_path.txt ]; then \
         GP_PATH=$(cat /tmp/gp_path.txt) && \
-        echo "找到 greenplum_path.sh: $GP_PATH" && \
+        echo "Found greenplum_path.sh: $GP_PATH" && \
         echo "export HASHDATA_PATH=$GP_PATH" >> /tmp/hashdata_env; \
     else \
-        echo "未找到 greenplum_path.sh，尝试其他路径..." && \
+        echo "greenplum_path.sh not found, trying other paths..." && \
         ls -la /usr/local/ && \
         if [ -d "/usr/local/hashdata-lightning" ]; then \
             echo "export HASHDATA_PATH=/usr/local/hashdata-lightning/greenplum_path.sh" >> /tmp/hashdata_env; \
         elif [ -d "/usr/local/greenplum-db" ]; then \
             echo "export HASHDATA_PATH=/usr/local/greenplum-db/greenplum_path.sh" >> /tmp/hashdata_env; \
         else \
-            echo "警告: 未找到 HashData 安装目录"; \
+            echo "Warning: HashData installation directory not found"; \
         fi; \
     fi
 
-# gpadmin 用户环境配置将在初始化时进行
+# gpadmin user environment configuration will be done at initialization
 
-# HashData 相关目录权限将在初始化时设置
+# HashData related directory permissions will be set at initialization
 
-# 复制配置文件
+# Copy configuration files
 COPY configs/ /tmp/configs/
 
-# 暴露端口
+# Expose ports
 EXPOSE 5432 22 40000 40001
 
-# 设置工作目录
+# Set working directory
 WORKDIR /home/gpadmin
 
-# 使用 init 系统启动多个服务
+# Use init system to start multiple services
 CMD ["/tmp/configs/init/init_cluster.sh"] 
