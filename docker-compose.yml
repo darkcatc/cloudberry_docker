@@ -33,8 +33,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
     volumes:
-      - ./data/master:/data
-      - ./logs/master:/var/log/hashdata
+      - hashdata_master_data:/data
+      - ./configs:/tmp/configs:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     mem_limit: ${MASTER_MEMORY}
     shm_size: '1g'
@@ -80,8 +80,8 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
     volumes:
-      - ./data/segment1:/data
-      - ./logs/segment1:/var/log/hashdata
+      - hashdata_segment1_data:/data
+      - ./configs:/tmp/configs:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     mem_limit: ${SEGMENT_MEMORY}
     shm_size: '1g'
@@ -123,8 +123,8 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
     volumes:
-      - ./data/segment2:/data
-      - ./logs/segment2:/var/log/hashdata
+      - hashdata_segment2_data:/data
+      - ./configs:/tmp/configs:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     mem_limit: ${SEGMENT_MEMORY}
     shm_size: '1g'
@@ -147,23 +147,19 @@ networks:
         - subnet: ${NETWORK_SUBNET}
           gateway: ${NETWORK_GATEWAY}
 
-# 数据卷配置
+# 数据卷配置（纯Docker管理的volume，支持数据持久化）
 volumes:
-  master-data:
+  # Master节点数据卷（/data目录 - coordinator实例）
+  hashdata_master_data:
+    name: hashdata_master_data
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data/master
-  segment1-data:
+  
+  # Segment1节点数据卷（/data目录 - primary实例）
+  hashdata_segment1_data:
+    name: hashdata_segment1_data
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data/segment1
-  segment2-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data/segment2 
+  
+  # Segment2节点数据卷（/data目录 - primary实例）
+  hashdata_segment2_data:
+    name: hashdata_segment2_data
+    driver: local 

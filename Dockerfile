@@ -28,7 +28,7 @@ RUN dnf update -y && \
         perl python3 python3-psutil python3-pyyaml readline rsync sed tar \
         which zip zlib git passwd wget sudo net-tools sshpass procps-ng \
         hostname bind-utils nc glibc-locale-source glibc-langpack-en \
-        initscripts systemd-sysv iputils && \
+        initscripts systemd-sysv iputils xfsprogs util-linux && \
     dnf clean all
 
 # 配置时区
@@ -63,20 +63,20 @@ RUN echo "/usr/local/lib" >> /etc/ld.so.conf && \
 # 创建必要的目录（权限将在初始化时设置）
 RUN mkdir -p /data/coordinator /data/primary /var/log/hashdata
 
-# 检查并配置 HashData 环境
+# 检查 HashData 安装路径（用户创建将在运行时进行）
 RUN echo "检查 HashData 安装路径..." && \
     find /usr/local -name "greenplum_path.sh" 2>/dev/null | head -1 > /tmp/gp_path.txt && \
     if [ -s /tmp/gp_path.txt ]; then \
         GP_PATH=$(cat /tmp/gp_path.txt) && \
         echo "找到 greenplum_path.sh: $GP_PATH" && \
-        echo "source $GP_PATH" >> /home/gpadmin/.bashrc; \
+        echo "export HASHDATA_PATH=$GP_PATH" >> /tmp/hashdata_env; \
     else \
         echo "未找到 greenplum_path.sh，尝试其他路径..." && \
         ls -la /usr/local/ && \
         if [ -d "/usr/local/hashdata-lightning" ]; then \
-            echo "source /usr/local/hashdata-lightning/greenplum_path.sh" >> /home/gpadmin/.bashrc; \
+            echo "export HASHDATA_PATH=/usr/local/hashdata-lightning/greenplum_path.sh" >> /tmp/hashdata_env; \
         elif [ -d "/usr/local/greenplum-db" ]; then \
-            echo "source /usr/local/greenplum-db/greenplum_path.sh" >> /home/gpadmin/.bashrc; \
+            echo "export HASHDATA_PATH=/usr/local/greenplum-db/greenplum_path.sh" >> /tmp/hashdata_env; \
         else \
             echo "警告: 未找到 HashData 安装目录"; \
         fi; \

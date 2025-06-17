@@ -21,6 +21,20 @@ print_error() {
     echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] 错误\033[0m $1"
 }
 
+# 复制配置文件到gpadmin家目录
+copy_config_files() {
+    print_info "复制集群配置文件到 gpadmin 家目录..."
+    
+    # 复制集群配置目录到gpadmin家目录
+    cp -r /tmp/configs/cluster /home/gpadmin/
+    
+    # 设置正确的所有者和权限
+    chown -R gpadmin:gpadmin /home/gpadmin/cluster
+    chmod 644 /home/gpadmin/cluster/*
+    
+    print_info "配置文件复制完成"
+}
+
 # 应用系统配置
 apply_system_config() {
     print_info "应用系统配置..."
@@ -54,30 +68,19 @@ start_ssh_service() {
     fi
 }
 
-# 配置 SSH 密钥
-setup_ssh_keys() {
-    print_info "配置 SSH 密钥..."
+# 验证 SSH 密钥配置
+verify_ssh_keys() {
+    print_info "验证 SSH 密钥配置..."
     
-    # 切换到 gpadmin 用户
-    su - gpadmin -c "
-        # 生成 SSH 密钥对（如果不存在）
-        if [ ! -f ~/.ssh/id_rsa ]; then
-            ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ''
-        fi
-        
-        # 添加本机密钥到授权文件
-        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-        chmod 600 ~/.ssh/authorized_keys
-        chmod 700 ~/.ssh
-        
-        # 设置 SSH 配置
-        echo 'Host *' > ~/.ssh/config
-        echo '    StrictHostKeyChecking no' >> ~/.ssh/config
-        echo '    UserKnownHostsFile /dev/null' >> ~/.ssh/config
-        chmod 600 ~/.ssh/config
-    "
+    # 检查SSH密钥是否存在（由setup_user.sh创建）
+    if [ -f /home/gpadmin/.ssh/id_rsa ]; then
+        print_info "✓ SSH密钥已存在"
+    else
+        print_error "✗ SSH密钥不存在，请检查setup_user.sh执行情况"
+        return 1
+    fi
     
-    print_info "SSH 密钥配置完成"
+    print_info "SSH 密钥验证完成"
 }
 
 # 等待其他节点启动
@@ -145,28 +148,73 @@ setup_cluster_connectivity() {
             fi
         done
         
-        # 测试 SSH 连接
-        print_info "测试 SSH 无密码连接..."
+        # 配置跨节点SSH免密登录
+        print_info "配置跨节点SSH免密登录..."
         su - gpadmin -c "
-            SSH_OPTS='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 -o BatchMode=yes'
+            # 配置master节点到自己的免密登录
+            echo \"配置master节点到自己的免密登录...\"
             
-            for host in segment1 segment2; do
-                echo \"测试到 \$host 的无密码SSH连接...\"
-                
-                # 先测试密钥认证
-                if timeout 15 ssh \$SSH_OPTS \$host 'echo \"SSH key auth to \$host successful\"' 2>/dev/null; then
-                    echo \"✓ SSH 密钥认证到 \$host 成功\"
-                else
-                    echo \"⚠ SSH 密钥认证到 \$host 失败，尝试密码认证验证...\"
-                    
-                    # 使用密码认证作为备用验证
-                    export SSHPASS='${GPADMIN_PASSWORD}'
-                    SSH_OPTS_PWD='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10'
-                    
-                    if timeout 15 sshpass -e ssh \$SSH_OPTS_PWD \$host 'echo \"SSH password auth works\"' 2>/dev/null; then
-                        echo \"✓ SSH 密码认证到 \$host 可用，但密钥认证需要修复\"
+            # 添加自己的公钥到authorized_keys（如果不存在）
+            if [ ! -f ~/.ssh/authorized_keys ] || ! grep -q \"\$(cat ~/.ssh/id_rsa.pub)\" ~/.ssh/authorized_keys; then
+                cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+                chmod 600 ~/.ssh/authorized_keys
+                echo \"✓ Master节点自身免密登录配置完成\"
+            else
+                echo \"✓ Master节点自身免密登录已存在\"
+            fi
+            
+            # 使用sshpass配置到其他节点的免密登录
+            for host in master segment1 segment2; do
+                if [ \"\$host\" = \"master\" ]; then
+                    # 对于master节点，直接测试本地SSH
+                    echo \"配置到 \$host (本地) 的免密登录...\"
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH免密登录成功\"' 2>/dev/null; then
+                        echo \"✓ SSH免密登录到 \$host 配置成功\"
+                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
+                        echo \"✓ SSH免密登录到 \$host 配置成功\"
                     else
-                        echo \"✗ SSH 连接到 \$host 完全失败\"
+                        echo \"⚠ SSH免密登录到 \$host 测试失败\"
+                    fi
+                else
+                    # 对于segment节点，使用sshpass配置
+                    echo \"配置到 \$host 的免密登录...\"
+                    
+                    # 使用sshpass + ssh-copy-id配置免密登录
+                    export SSHPASS='${GPADMIN_PASSWORD}'
+                    if sshpass -e ssh-copy-id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \$host 2>/dev/null; then
+                        echo \"✓ SSH免密登录到 \$host 配置成功\"
+                    else
+                        echo \"⚠ SSH免密登录到 \$host 配置失败，尝试手动配置...\"
+                        
+                        # 手动复制公钥
+                        if sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \$host \"mkdir -p ~/.ssh && chmod 700 ~/.ssh\" 2>/dev/null; then
+                            cat ~/.ssh/id_rsa.pub | sshpass -e ssh -o StrictHostKeyChecking=no \$host \"cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\" 2>/dev/null
+                            echo \"✓ 手动配置SSH免密登录到 \$host 成功\"
+                        else
+                            echo \"✗ 无法配置到 \$host 的SSH免密登录\"
+                        fi
+                    fi
+                fi
+            done
+            
+            # 测试免密登录
+            echo \"测试SSH免密登录...\"
+            for host in master segment1 segment2; do
+                if [ \"\$host\" = \"master\" ]; then
+                    # 测试master节点（尝试localhost和master主机名）
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH免密登录成功\"' 2>/dev/null; then
+                        echo \"✓ 到 \$host (localhost) 的SSH免密登录测试成功\"
+                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
+                        echo \"✓ 到 \$host 的SSH免密登录测试成功\"
+                    else
+                        echo \"✗ 到 \$host 的SSH免密登录测试失败\"
+                    fi
+                else
+                    # 测试segment节点
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
+                        echo \"✓ 到 \$host 的SSH免密登录测试成功\"
+                    else
+                        echo \"✗ 到 \$host 的SSH免密登录测试失败\"
                     fi
                 fi
             done
@@ -203,9 +251,7 @@ init_database_cluster() {
         print_info "使用 Greenplum 环境脚本: $greenplum_path"
         source "$greenplum_path"
         
-        # 创建数据目录
-        mkdir -p /data/coordinator
-        chown -R gpadmin:gpadmin /data/coordinator
+        # 数据目录已在setup_user.sh中创建和配置权限
         
         # 切换到 gpadmin 用户初始化集群
         su - gpadmin -c "
@@ -222,21 +268,15 @@ init_database_cluster() {
             # 等待一段时间确保所有节点准备就绪
             sleep 10
             
-            # 使用 gpinitsystem 初始化集群
-            if [ -f '/tmp/configs/cluster/gpinitsystem.conf' ]; then
-                gpinitsystem -c /tmp/configs/cluster/gpinitsystem.conf -h /tmp/configs/cluster/hosts -a
-            else
-                echo '错误: 找不到集群配置文件'
-                exit 1
-            fi
+                          # 使用 gpinitsystem 初始化集群
+              if [ -f '/home/gpadmin/cluster/gpinitsystem.conf' ]; then
+                  gpinitsystem -c /home/gpadmin/cluster/gpinitsystem.conf -h /home/gpadmin/cluster/hosts -a
+              else
+                  echo '错误: 找不到集群配置文件'
+                  exit 1
+              fi
             
-            # 设置环境变量
-            echo 'export COORDINATOR_DATA_DIRECTORY=/data/coordinator/gpseg-1' >> ~/.bashrc
-            echo 'export PGPORT=5432' >> ~/.bashrc
-            echo 'export PGUSER=gpadmin' >> ~/.bashrc
-            echo 'export PGDATABASE=gpadmin' >> ~/.bashrc
-            
-            # 重新加载环境变量
+            # 环境变量已在 setup_user.sh 中配置，这里只需重新加载
             source ~/.bashrc
         "
         
@@ -248,14 +288,14 @@ init_database_cluster() {
     else
         print_info "Segment 节点 ${HOSTNAME} 准备就绪"
         
-        # 创建 segment 数据目录
-        mkdir -p "/data/primary"
-        chown -R gpadmin:gpadmin "/data/primary"
+        # 数据目录已在setup_user.sh中创建和配置权限
     fi
 }
 
 # 主函数
 main() {
+    print_info "=== 开始初始化 HashData Lightning 集群 ==="
+    
     print_info "=== HashData Lightning 2.0 容器初始化 ==="
     print_info "节点类型: ${NODE_TYPE:-unknown}"
     print_info "主机名: ${HOSTNAME:-unknown}"
@@ -269,12 +309,17 @@ main() {
     # 设置 gpadmin 用户（动态检测权限）
     print_info "设置 gpadmin 用户..."
     if [ -f "/tmp/configs/init/setup_user.sh" ]; then
-        chmod +x /tmp/configs/init/setup_user.sh
-        /tmp/configs/init/setup_user.sh
+        # 复制脚本到可写目录并设置执行权限
+        cp /tmp/configs/init/setup_user.sh /tmp/setup_user.sh
+        chmod +x /tmp/setup_user.sh
+        /tmp/setup_user.sh
     else
         print_error "未找到用户设置脚本"
         exit 1
     fi
+    
+    # 复制配置文件（在gpadmin用户创建之后）
+    copy_config_files
     
     # 应用系统配置
     apply_system_config
@@ -282,8 +327,8 @@ main() {
     # 启动 SSH 服务
     start_ssh_service
     
-    # 配置 SSH 密钥
-    setup_ssh_keys
+    # 验证 SSH 密钥配置
+    verify_ssh_keys
     
     # 等待其他节点启动
     wait_for_nodes

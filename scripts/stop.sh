@@ -1,6 +1,7 @@
 #!/bin/bash
 # HashData Lightning 2.0 集群停止脚本
 # 作者: Vance Chen
+# 用途: 停止集群服务但保留数据，可通过start.sh重新启动
 
 set -euo pipefail
 
@@ -29,64 +30,50 @@ print_error() {
     echo -e "\033[31m[错误]\033[0m $1"
 }
 
-# 停止集群
-stop_cluster() {
-    print_info "停止 HashData Lightning 2.0 集群..."
+# 检查集群是否运行
+check_cluster_running() {
+    if ! docker ps --filter "name=hashdata-" --format "{{.Names}}" | grep -q "hashdata-"; then
+        print_warning "未发现运行中的 HashData 容器"
+        exit 0
+    fi
+}
+
+# 停止数据库服务
+stop_database_services() {
+    print_info "停止数据库服务..."
+    
+    # 优雅停止数据库
+    if docker exec hashdata-master su - gpadmin -c "gpstop -a" &> /dev/null; then
+        print_info "数据库服务停止成功"
+    else
+        print_warning "数据库服务可能已经停止或停止失败"
+    fi
+}
+
+# 停止容器
+stop_containers() {
+    print_info "停止集群容器..."
     
     cd "${PROJECT_DIR}"
     
-    # 检查容器是否运行
-    if ! docker ps --filter "name=hashdata-" --format "{{.Names}}" | grep -q "hashdata-"; then
-        print_warning "未发现运行中的 HashData 容器"
-        return 0
-    fi
-    
     # 使用 Docker Compose 停止
     if command -v docker-compose &> /dev/null; then
-        docker-compose --env-file hashdata.env down
+        docker-compose --env-file hashdata.env stop
     else
-        docker compose --env-file hashdata.env down
+        docker compose --env-file hashdata.env stop
     fi
     
     if [ $? -eq 0 ]; then
-        print_info "集群停止成功！"
+        print_info "容器停止成功！"
     else
-        print_error "集群停止失败，尝试强制停止..."
-        force_stop_containers
-    fi
-}
-
-# 强制停止容器
-force_stop_containers() {
-    print_info "强制停止 HashData 容器..."
-    
-    local containers=(
-        "hashdata-master"
-        "hashdata-segment1" 
-        "hashdata-segment2"
-    )
-    
-    for container in "${containers[@]}"; do
-        if docker ps -a --filter "name=${container}" --format "{{.Names}}" | grep -q "${container}"; then
-            print_info "停止容器: ${container}"
-            docker stop "${container}" || true
-            docker rm "${container}" || true
-        fi
-    done
-}
-
-# 清理网络
-cleanup_network() {
-    print_info "清理网络..."
-    
-    if docker network ls --filter "name=${NETWORK_NAME}" --format "{{.Name}}" | grep -q "${NETWORK_NAME}"; then
-        docker network rm "${NETWORK_NAME}" || print_warning "无法删除网络 ${NETWORK_NAME}"
+        print_error "容器停止失败"
+        exit 1
     fi
 }
 
 # 显示状态
 show_status() {
-    print_info "=== 停止后状态 ==="
+    print_info "=== 停止状态 ==="
     
     # 检查是否还有运行的容器
     local running_containers=$(docker ps --filter "name=hashdata-" --format "{{.Names}}")
@@ -98,24 +85,23 @@ show_status() {
         echo "$running_containers"
     fi
     
-    # 显示数据保留信息
     echo
     print_info "=== 数据保留信息 ==="
-    print_info "数据目录: ${PROJECT_DIR}/data (已保留)"
-    print_info "日志目录: ${PROJECT_DIR}/logs (已保留)"
-    print_info "如需完全清理，请运行: ./scripts/clean.sh"
+    print_info "✓ 数据卷已保留 (hashdata_master_data, hashdata_segment1_data, hashdata_segment2_data)"
+    print_info "✓ 使用 './scripts/start.sh' 可重新启动集群"
+    print_info "✓ 使用 './scripts/destroy.sh' 可完全删除集群和数据"
 }
 
 # 主函数
 main() {
-    print_info "=== HashData Lightning 2.0 集群停止 ==="
+    print_info "=== 停止 HashData Lightning 2.0 集群 ==="
     
-    stop_cluster
-    cleanup_network
+    check_cluster_running
+    stop_database_services
+    stop_containers
     show_status
     
-    print_info "集群已停止！"
-    print_info "使用 './scripts/start.sh' 重新启动集群"
+    print_info "集群已停止，数据已保留！"
 }
 
 # 执行主函数

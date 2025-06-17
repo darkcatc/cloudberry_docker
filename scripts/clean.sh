@@ -1,6 +1,17 @@
 #!/bin/bash
-# HashData Lightning 2.0 环境清理脚本
+# HashData Lightning 2.0 环境完全清理脚本
 # 作者: Vance Chen
+# 
+# 功能说明:
+# - 删除所有 HashData 相关的 Docker 镜像 (约 7-8GB)
+# - 停止并删除所有集群容器
+# - 清理 Docker 网络和构建缓存
+# - 不删除 Docker 卷中的数据（数据清理请使用 destroy.sh）
+# 
+# ⚠️  警告:
+# - 此操作会删除构建的 Docker 镜像，重新使用需要重新构建
+# - 此操作不会删除 Docker 卷中的数据，如需删除数据请使用 destroy.sh
+# - 清理后需要重新运行 build.sh 构建镜像
 
 set -euo pipefail
 
@@ -31,19 +42,25 @@ print_error() {
 
 # 确认清理操作
 confirm_cleanup() {
-    print_warning "此操作将完全清理 HashData Lightning 2.0 环境，包括："
-    echo "  - 停止并删除所有容器"
-    echo "  - 删除 Docker 镜像"
-    echo "  - 删除网络"
-    echo "  - 清理数据目录 (${PROJECT_DIR}/data)"
-    echo "  - 清理日志目录 (${PROJECT_DIR}/logs)"
+    print_error "⚠️  警告: 此操作将完全清理 HashData Lightning 2.0 环境！"
+    print_warning "🗑️  将要删除的内容："
+    echo "    • 停止并删除所有集群容器"
+    echo "    • 删除 Docker 镜像 (约 7-8GB 存储空间)"
+    echo "    • 删除 Docker 网络"
+
+    echo "    • 清理 Docker 构建缓存"
+    echo ""
+    print_warning "💡 注意事项："
+    echo "    • Docker 卷中的数据不会被删除 (如需删除请用 destroy.sh)"
+    echo "    • 清理后需要重新运行 build.sh 构建镜像"
+    echo "    • 重新构建镜像需要重新下载 HashData 安装包"
     echo ""
     
-    read -p "确认执行清理操作？(y/N): " -n 1 -r
+    read -p "确认执行完全清理操作？请输入 'yes' 确认: " -r
     echo
     
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "取消清理操作"
+    if [[ ! $REPLY == "yes" ]]; then
+        print_info "清理操作已取消"
         exit 0
     fi
 }
@@ -102,20 +119,7 @@ cleanup_network() {
     fi
 }
 
-# 清理数据目录
-cleanup_data() {
-    print_info "清理数据目录..."
-    
-    if [ -d "${PROJECT_DIR}/data" ]; then
-        print_info "删除数据目录: ${PROJECT_DIR}/data"
-        rm -rf "${PROJECT_DIR}/data"
-    fi
-    
-    if [ -d "${PROJECT_DIR}/logs" ]; then
-        print_info "删除日志目录: ${PROJECT_DIR}/logs"
-        rm -rf "${PROJECT_DIR}/logs"
-    fi
-}
+
 
 # 清理 Docker 系统缓存
 cleanup_docker_cache() {
@@ -165,13 +169,16 @@ main() {
     cleanup_containers
     cleanup_images
     cleanup_network
-    cleanup_data
     cleanup_docker_cache
     
     show_cleanup_result
     
-    print_info "环境清理完成！"
-    print_info "重新开始请运行: ./scripts/build.sh && ./scripts/start.sh"
+    echo
+    print_info "🎉 环境清理完成！"
+    print_info "📋 重新开始的步骤:"
+    print_info "   1. 构建镜像: ./scripts/build.sh"
+    print_info "   2. 初始化集群: ./scripts/init.sh"
+    print_info "   3. 或者查看帮助: cat README.md"
 }
 
 # 执行主函数
