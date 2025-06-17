@@ -60,8 +60,8 @@ RUN echo "/usr/local/lib" >> /etc/ld.so.conf && \
     echo "/usr/local/lib64" >> /etc/ld.so.conf && \
     ldconfig
 
-# 创建必要的目录（权限将在初始化时设置）
-RUN mkdir -p /data/coordinator /data/primary /var/log/hashdata
+# 创建基础数据目录（具体的coordinator/primary目录将在运行时根据节点类型创建）
+RUN mkdir -p /data /var/log/hashdata
 
 # 检查 HashData 安装路径（用户创建将在运行时进行）
 RUN echo "检查 HashData 安装路径..." && \

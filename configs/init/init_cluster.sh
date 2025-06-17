@@ -21,6 +21,32 @@ print_error() {
     echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] 错误\033[0m $1"
 }
 
+# 根据节点类型创建相应的数据目录
+create_node_directories() {
+    print_info "根据节点类型创建数据目录..."
+    
+    if [ "${NODE_TYPE:-}" = "master" ]; then
+        print_info "创建 Master 节点数据目录..."
+        mkdir -p /data/coordinator
+        chown gpadmin:gpadmin /data/coordinator
+        chmod 755 /data/coordinator
+        print_info "✓ 已创建 /data/coordinator 目录"
+    elif [ "${NODE_TYPE:-}" = "segment" ]; then
+        print_info "创建 Segment 节点数据目录..."
+        mkdir -p /data/primary
+        chown gpadmin:gpadmin /data/primary
+        chmod 755 /data/primary
+        print_info "✓ 已创建 /data/primary 目录"
+    else
+        print_warning "未知的节点类型: ${NODE_TYPE:-unknown}，创建所有目录"
+        mkdir -p /data/coordinator /data/primary
+        chown gpadmin:gpadmin /data/coordinator /data/primary
+        chmod 755 /data/coordinator /data/primary
+    fi
+    
+    print_info "数据目录创建完成"
+}
+
 # 复制配置文件到gpadmin家目录
 copy_config_files() {
     print_info "复制集群配置文件到 gpadmin 家目录..."
@@ -317,6 +343,9 @@ main() {
         print_error "未找到用户设置脚本"
         exit 1
     fi
+    
+    # 根据节点类型创建数据目录
+    create_node_directories
     
     # 复制配置文件（在gpadmin用户创建之后）
     copy_config_files

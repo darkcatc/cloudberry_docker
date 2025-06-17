@@ -170,8 +170,7 @@ setup_data_storage() {
     # 设置目录权限
     chown -R gpadmin:gpadmin /data 2>/dev/null || true
     chmod 755 /data 2>/dev/null || true
-    [ -d "/data/coordinator" ] && chmod 755 /data/coordinator
-    [ -d "/data/primary" ] && chmod 755 /data/primary
+    # coordinator/primary 目录权限将在 init_cluster.sh 中根据节点类型设置
     
     print_info "数据存储配置完成"
 }
