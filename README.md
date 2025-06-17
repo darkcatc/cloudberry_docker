@@ -27,7 +27,6 @@ hashdata_docker/
 ├── hashdata.env                # Environment variable configuration file
 ├── docker-compose.yml          # Main Docker Compose configuration file
 ├── Dockerfile                  # Docker image build file
-├── arch.png                    # Architecture diagram
 ├── scripts/                    # Scripts directory
 │   ├── build.sh               # Image build script
 │   ├── init.sh                # Cluster initialization script (first deployment)
