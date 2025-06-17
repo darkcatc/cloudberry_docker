@@ -2,7 +2,8 @@
 
 ## 项目简介
 
-基于 Docker 和 Docker Compose 的 HashData Lightning 2.0 (GP7变体) 集群部署解决方案。
+基于 Docker 和 Docker Compose 的 HashData Lightning 2.0 集群部署解决方案。
+通过Shell实现，只支持Linux的操作系统。
 
 - **作者**: Vance Chen
 - **HashData 版本**: 2.0.0
@@ -52,11 +53,11 @@ hashdata_docker/
 ### 1. 构建镜像
 
 ```bash
-# 构建 HashData Docker 镜像 (约 7-8GB，需要网络下载)
+# 构建 HashData Docker 镜像 (约 5-6GB，需要网络下载)
 ./scripts/build.sh
 ```
 
-**注意**: 首次构建需要下载约 500MB+ 的 HashData 安装包，预计耗时 10-30 分钟。
+**注意**: 首次构建需要下载约 1500MB+ 的 HashData 安装包，预计耗时 10-30 分钟。
 
 ### 2. 初始化集群（首次部署）
 
