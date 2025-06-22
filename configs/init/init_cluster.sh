@@ -181,7 +181,8 @@ setup_cluster_connectivity() {
             echo "Configuring passwordless login from master node to itself..."
             
             # Add own public key to authorized_keys (if it doesn't exist)
-            if [ ! -f ~/.ssh/authorized_keys ] || ! grep -q \"\$(cat ~/.ssh/id_rsa.pub)\" ~/.ssh/authorized_keys; then
+                        # Add own public key to authorized_keys (if it doesn't exist)
+            if [ ! -f ~/.ssh/authorized_keys ] || ! grep -qF "$(cat ~/.ssh/id_rsa.pub)" ~/.ssh/authorized_keys; then
                 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
                 chmod 600 ~/.ssh/authorized_keys
                 echo "✓ Master node self passwordless login configured"
