@@ -2,7 +2,7 @@
 
 ## Project Introduction
 
-A HashData Lightning cluster deployment solution based on Docker and Docker Compose.
+A Cloudberry cluster deployment solution based on Docker and Docker Compose.
 Implemented via Shell, supports Linux operating systems only.
 
 - **Author**: Vance Chen
