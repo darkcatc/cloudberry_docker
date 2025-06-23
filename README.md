@@ -1,12 +1,11 @@
-# HashData Lightning 2.0 Docker Cluster Deployment
+# Cloudberry Docker Cluster Deployment
 
 ## Project Introduction
 
-A HashData Lightning 2.0 cluster deployment solution based on Docker and Docker Compose.
+A Cloudberry cluster deployment solution based on Docker and Docker Compose.
 Implemented via Shell, supports Linux operating systems only.
 
 - **Author**: Vance Chen
-- **HashData Version**: 2.0.0
 - **Base Image**: CentOS 9 Stream
 - **Cluster Architecture**: 1 Master + 2 Segments (No Mirror)
 - **Storage Management**: Docker volume management, smart permission adaptation
