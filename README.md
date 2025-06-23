@@ -1,4 +1,4 @@
-# HashData Lightning Docker Cluster Deployment
+# Cloudberry Docker Cluster Deployment
 
 ## Project Introduction
 
