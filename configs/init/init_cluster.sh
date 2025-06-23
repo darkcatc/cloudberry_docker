@@ -1,89 +1,89 @@
 #!/bin/bash
 # HashData Lightning 2.0 集群初始化脚本
-# 作者: Vance Chen
+# Author: Vance Chen
 
 set -euo pipefail
 
-# 环境变量
+# Environment variables
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-# 颜色输出函数
+# Color output functions
 print_info() {
-    echo -e "\033[32m[$(date '+%Y-%m-%d %H:%M:%S')] 信息\033[0m $1"
+    echo -e "\033[32m[$(date '+%Y-%m-%d %H:%M:%S')] Info\033[0m $1"
 }
 
 print_warning() {
-    echo -e "\033[33m[$(date '+%Y-%m-%d %H:%M:%S')] 警告\033[0m $1"
+    echo -e "\033[33m[$(date '+%Y-%m-%d %H:%M:%S')] Warning\033[0m $1"
 }
 
 print_error() {
-    echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] 错误\033[0m $1"
+    echo -e "\033[31m[$(date '+%Y-%m-%d %H:%M:%S')] Error\033[0m $1"
 }
 
-# 根据节点类型创建相应的数据目录
+# Create data directories based on node type
 create_node_directories() {
-    print_info "根据节点类型创建数据目录..."
+    print_info "Creating data directories based on node type..."
     
     if [ "${NODE_TYPE:-}" = "master" ]; then
-        print_info "创建 Master 节点数据目录..."
+        print_info "Creating Master node data directory..."
         mkdir -p /data/coordinator
         chown gpadmin:gpadmin /data/coordinator
         chmod 755 /data/coordinator
-        print_info "✓ 已创建 /data/coordinator 目录"
+        print_info "✓ Master node data directory created"
     elif [ "${NODE_TYPE:-}" = "segment" ]; then
-        print_info "创建 Segment 节点数据目录..."
+        print_info "Creating Segment node data directory..."
         mkdir -p /data/primary
         chown gpadmin:gpadmin /data/primary
         chmod 755 /data/primary
-        print_info "✓ 已创建 /data/primary 目录"
+        print_info "✓ Segment node data directory created"
     else
-        print_warning "未知的节点类型: ${NODE_TYPE:-unknown}，创建所有目录"
+        print_warning "Unknown node type: ${NODE_TYPE:-unknown}, creating all directories"
         mkdir -p /data/coordinator /data/primary
         chown gpadmin:gpadmin /data/coordinator /data/primary
         chmod 755 /data/coordinator /data/primary
     fi
     
-    print_info "数据目录创建完成"
+    print_info "Data directories created successfully"
 }
 
-# 复制配置文件到gpadmin家目录
+# Copy configuration files to gpadmin home directory
 copy_config_files() {
-    print_info "复制集群配置文件到 gpadmin 家目录..."
+    print_info "Copying cluster configuration files to gpadmin home directory..."
     
-    # 复制集群配置目录到gpadmin家目录
+    # Copy cluster configuration directory to gpadmin home directory
     cp -r /tmp/configs/cluster /home/gpadmin/
     
-    # 设置正确的所有者和权限
+    # Set correct ownership and permissions
     chown -R gpadmin:gpadmin /home/gpadmin/cluster
     chmod 644 /home/gpadmin/cluster/*
     
-    print_info "配置文件复制完成"
+    print_info "Cluster configuration files copied successfully"
 }
 
-# 应用系统配置
+# Apply system configuration
 apply_system_config() {
-    print_info "应用系统配置..."
+    print_info "Applying system configuration..."
     
-    # 应用内核参数
+    # Apply kernel parameters
     if [ -f "/tmp/configs/system/sysctl.conf" ]; then
         cat /tmp/configs/system/sysctl.conf >> /etc/sysctl.conf
-        sysctl -p || print_warning "部分内核参数可能需要重启才能生效"
+        sysctl -p || print_warning "Some kernel parameters may need to be restarted to take effect"
     fi
     
-    # 应用资源限制
+    # Apply resource limits
     if [ -f "/tmp/configs/system/limits.conf" ]; then
         cat /tmp/configs/system/limits.conf >> /etc/security/limits.conf
     fi
     
-    print_info "系统配置应用完成"
+    print_info "System configuration applied successfully"
 }
 
-# 启动 SSH 服务
+# Start SSH service
 start_ssh_service() {
-    print_info "启动 SSH 服务..."
+    print_info "Starting SSH service..."
     
-    # 启动 SSH 服务
+    # Start SSH service
     /usr/sbin/sshd
     
     if [ $? -eq 0 ]; then
@@ -94,31 +94,31 @@ start_ssh_service() {
     fi
 }
 
-# 验证 SSH 密钥配置
+# Verify SSH key configuration
 verify_ssh_keys() {
-    print_info "验证 SSH 密钥配置..."
+    print_info "Verifying SSH key configuration..."
     
-    # 检查SSH密钥是否存在（由setup_user.sh创建）
+    # Check if SSH key exists (created by setup_user.sh)
     if [ -f /home/gpadmin/.ssh/id_rsa ]; then
-        print_info "✓ SSH密钥已存在"
+        print_info "✓ SSH key exists"
     else
-        print_error "✗ SSH密钥不存在，请检查setup_user.sh执行情况"
+        print_error "✗ SSH key does not exist, please check setup_user.sh execution status"
         return 1
     fi
     
-    print_info "SSH 密钥验证完成"
+    print_info "SSH key verification completed"
 }
 
-# 等待其他节点启动
+# Wait for other nodes to start
 wait_for_nodes() {
     if [ "${NODE_TYPE:-}" = "master" ]; then
-        print_info "等待 Segment 节点启动..."
+        print_info "Waiting for Segment nodes to start..."
         
-        # 检查环境变量是否存在
+        # Check if environment variables exist
         if [ -z "${SEGMENT1_IP:-}" ] || [ -z "${SEGMENT2_IP:-}" ]; then
-            print_error "缺少 Segment IP 环境变量"
-            print_info "SEGMENT1_IP: ${SEGMENT1_IP:-未设置}"
-            print_info "SEGMENT2_IP: ${SEGMENT2_IP:-未设置}"
+            print_error "Missing Segment IP environment variables"
+            print_info "SEGMENT1_IP: ${SEGMENT1_IP:-Not set}"
+            print_info "SEGMENT2_IP: ${SEGMENT2_IP:-Not set}"
             return 1
         fi
         
@@ -129,7 +129,7 @@ wait_for_nodes() {
         for host in "${segment_hosts[@]}"; do
             while [ $wait_time -lt $max_wait ]; do
                 if nc -z "$host" 22 2>/dev/null; then
-                    print_info "节点 $host 已启动"
+                    print_info "✓ Segment node $host started"
                     break
                 fi
                 echo -n "."
@@ -138,7 +138,7 @@ wait_for_nodes() {
             done
             
             if [ $wait_time -ge $max_wait ]; then
-                print_warning "等待节点 $host 超时"
+                print_warning "Timeout waiting for node $host"
             fi
             
             wait_time=0
@@ -146,234 +146,231 @@ wait_for_nodes() {
     fi
 }
 
-# 配置集群互联
+# Configure cluster connectivity
 setup_cluster_connectivity() {
     if [ "${NODE_TYPE:-}" = "master" ]; then
-        print_info "配置集群互联..."
+        print_info "Configuring cluster connectivity..."
         
-        # 配置 hosts 文件（避免重复条目）
+        # Configure hosts file (avoid duplicate entries)
         grep -q "master" /etc/hosts || echo "${MASTER_IP} master" >> /etc/hosts
         grep -q "segment1" /etc/hosts || echo "${SEGMENT1_IP} segment1" >> /etc/hosts
         grep -q "segment2" /etc/hosts || echo "${SEGMENT2_IP} segment2" >> /etc/hosts
         
-        # 等待 segment 节点完全启动
-        print_info "等待 Segment 节点完全准备就绪..."
+        # Wait for segment nodes to fully start
+        print_info "Waiting for Segment nodes to fully prepare..."
         sleep 30
         
-        # SSH 密钥已在镜像构建时预先配置
-        print_info "验证 SSH 密钥配置..."
+        # SSH keys are already configured in the image build process
         
-        # 先测试基本连通性
-        print_info "测试网络连通性..."
+        # Test basic connectivity
+        print_info "Testing network connectivity..."
         for host in segment1 segment2; do
-            echo "测试连接到 $host..."
+            echo "Testing connection to $host..."
             if ping -c 2 $host >/dev/null 2>&1; then
-                echo "✓ 网络连接到 $host 正常"
+                echo "✓ Network connection to $host is normal"
             else
-                echo "✗ 网络连接到 $host 失败"
+                echo "✗ Network connection to $host failed"
             fi
         done
         
-        # 配置跨节点SSH免密登录
-        print_info "配置跨节点SSH免密登录..."
+        # Configure cross-node SSH passwordless login
+        print_info "Configuring cross-node SSH passwordless login..."
         su - gpadmin -c "
-            # 配置master节点到自己的免密登录
-            echo \"配置master节点到自己的免密登录...\"
+            # Configure master node to its own passwordless login
+            echo \"Configuring master node to its own passwordless login...\"
             
-            # 添加自己的公钥到authorized_keys（如果不存在）
+            # Add own public key to authorized_keys (if it doesn't exist)
             if [ ! -f ~/.ssh/authorized_keys ] || ! grep -q \"\$(cat ~/.ssh/id_rsa.pub)\" ~/.ssh/authorized_keys; then
                 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
                 chmod 600 ~/.ssh/authorized_keys
-                echo \"✓ Master节点自身免密登录配置完成\"
+                echo \"✓ Master node passwordless login configuration completed\"
             else
-                echo \"✓ Master节点自身免密登录已存在\"
+                echo \"✓ Master node passwordless login already exists\"
             fi
             
-            # 使用sshpass配置到其他节点的免密登录
+            # Configure passwordless login to other nodes using sshpass
             for host in master segment1 segment2; do
                 if [ \"\$host\" = \"master\" ]; then
-                    # 对于master节点，直接测试本地SSH
-                    echo \"配置到 \$host (本地) 的免密登录...\"
-                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH免密登录成功\"' 2>/dev/null; then
-                        echo \"✓ SSH免密登录到 \$host 配置成功\"
-                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
-                        echo \"✓ SSH免密登录到 \$host 配置成功\"
+                    # For master node, directly test local SSH
+                    echo \"Configuring passwordless login to \$host (local)...\"
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH passwordless login successful\"' 2>/dev/null; then
+                        echo \"✓ SSH passwordless login to \$host configuration completed\"
+                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH passwordless login successful\"' 2>/dev/null; then
+                        echo \"✓ SSH passwordless login to \$host configuration completed\"
                     else
-                        echo \"⚠ SSH免密登录到 \$host 测试失败\"
+                        echo \"⚠ SSH passwordless login to \$host configuration failed\"
                     fi
                 else
-                    # 对于segment节点，使用sshpass配置
-                    echo \"配置到 \$host 的免密登录...\"
+                    # For segment nodes, use sshpass to configure
+                    echo \"Configuring passwordless login to \$host...\"
                     
-                    # 使用sshpass + ssh-copy-id配置免密登录
+                    # Use sshpass + ssh-copy-id to configure passwordless login
                     export SSHPASS='${GPADMIN_PASSWORD}'
                     if sshpass -e ssh-copy-id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \$host 2>/dev/null; then
-                        echo \"✓ SSH免密登录到 \$host 配置成功\"
+                        echo \"✓ SSH passwordless login to \$host configuration completed\"
                     else
-                        echo \"⚠ SSH免密登录到 \$host 配置失败，尝试手动配置...\"
+                        echo \"⚠ SSH passwordless login to \$host configuration failed, trying manual configuration...\"
                         
-                        # 手动复制公钥
+                        # Manually copy public key
                         if sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \$host \"mkdir -p ~/.ssh && chmod 700 ~/.ssh\" 2>/dev/null; then
                             cat ~/.ssh/id_rsa.pub | sshpass -e ssh -o StrictHostKeyChecking=no \$host \"cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\" 2>/dev/null
-                            echo \"✓ 手动配置SSH免密登录到 \$host 成功\"
+                            echo \"✓ Manually configured SSH passwordless login to \$host successfully\"
                         else
-                            echo \"✗ 无法配置到 \$host 的SSH免密登录\"
+                            echo \"✗ Failed to configure SSH passwordless login to \$host\"
                         fi
                     fi
                 fi
             done
             
-            # 测试免密登录
-            echo \"测试SSH免密登录...\"
+            # Test passwordless login
+            echo \"Testing SSH passwordless login...\"
             for host in master segment1 segment2; do
                 if [ \"\$host\" = \"master\" ]; then
-                    # 测试master节点（尝试localhost和master主机名）
-                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH免密登录成功\"' 2>/dev/null; then
-                        echo \"✓ 到 \$host (localhost) 的SSH免密登录测试成功\"
-                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
-                        echo \"✓ 到 \$host 的SSH免密登录测试成功\"
+                    # Test master node (try localhost and master hostname)
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes localhost 'echo \"SSH passwordless login successful\"' 2>/dev/null; then
+                        echo \"✓ SSH passwordless login to \$host (localhost) test successful\"
+                    elif ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH passwordless login successful\"' 2>/dev/null; then
+                        echo \"✓ SSH passwordless login to \$host test successful\"
                     else
-                        echo \"✗ 到 \$host 的SSH免密登录测试失败\"
+                        echo \"✗ SSH passwordless login to \$host test failed\"
                     fi
                 else
-                    # 测试segment节点
-                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH免密登录成功\"' 2>/dev/null; then
-                        echo \"✓ 到 \$host 的SSH免密登录测试成功\"
+                    # Test segment node
+                    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \$host 'echo \"SSH passwordless login successful\"' 2>/dev/null; then
+                        echo \"✓ SSH passwordless login to \$host test successful\"
                     else
-                        echo \"✗ 到 \$host 的SSH免密登录测试失败\"
+                        echo \"✗ SSH passwordless login to \$host test failed\"
                     fi
                 fi
             done
         "
         
-        print_info "集群互联配置完成"
+        print_info "Cluster connectivity configuration completed"
     else
-        # Segment 节点配置（避免重复条目）
+        # Segment node configuration (avoid duplicate entries)
         grep -q "master" /etc/hosts || echo "${MASTER_IP} master" >> /etc/hosts
         grep -q "segment1" /etc/hosts || echo "${SEGMENT1_IP} segment1" >> /etc/hosts
         grep -q "segment2" /etc/hosts || echo "${SEGMENT2_IP} segment2" >> /etc/hosts
         
-        print_info "Segment 节点网络配置完成"
+        print_info "Segment node network configuration completed"
     fi
 }
 
-# 初始化数据库集群
+# Initialize database cluster
 init_database_cluster() {
     if [ "${NODE_TYPE:-}" = "master" ]; then
-        print_info "初始化 HashData 数据库集群..."
+        print_info "Initializing HashData database cluster..."
         
-        # 检查 HashData 安装路径
+        # Check HashData installation path
         local greenplum_path=""
         if [ -f "/usr/local/hashdata-lightning/greenplum_path.sh" ]; then
             greenplum_path="/usr/local/hashdata-lightning/greenplum_path.sh"
         elif [ -f "/usr/local/greenplum-db/greenplum_path.sh" ]; then
             greenplum_path="/usr/local/greenplum-db/greenplum_path.sh"
         else
-            print_error "未找到 greenplum_path.sh 文件"
-            find /usr/local -name "greenplum_path.sh" 2>/dev/null || print_info "系统中未找到 greenplum_path.sh"
+            print_error "greenplum_path.sh file not found"
+            find /usr/local -name "greenplum_path.sh" 2>/dev/null || print_info "greenplum_path.sh not found in the system"
             return 1
         fi
         
-        print_info "使用 Greenplum 环境脚本: $greenplum_path"
+        print_info "Using Greenplum environment script: $greenplum_path"
         source "$greenplum_path"
         
-        # 数据目录已在setup_user.sh中创建和配置权限
+        # Data directory has been created and configured permissions in setup_user.sh
         
-        # 切换到 gpadmin 用户初始化集群
+        # Switch to gpadmin user to initialize the cluster
         su - gpadmin -c "
-            # 加载 Greenplum 环境
+            # Load Greenplum environment
             if [ -f '/usr/local/hashdata-lightning/greenplum_path.sh' ]; then
                 source /usr/local/hashdata-lightning/greenplum_path.sh
             elif [ -f '/usr/local/greenplum-db/greenplum_path.sh' ]; then
                 source /usr/local/greenplum-db/greenplum_path.sh
             else
-                echo '错误: 未找到 greenplum_path.sh'
+                echo 'Error: greenplum_path.sh not found'
                 exit 1
             fi
             
-            # 等待一段时间确保所有节点准备就绪
+            # Wait for a moment to ensure all nodes are ready
             sleep 10
             
-                          # 使用 gpinitsystem 初始化集群
-              if [ -f '/home/gpadmin/cluster/gpinitsystem.conf' ]; then
-                  gpinitsystem -c /home/gpadmin/cluster/gpinitsystem.conf -h /home/gpadmin/cluster/hosts -a
+            # Initialize the cluster using gpinitsystem
+            if [ -f '/home/gpadmin/cluster/gpinitsystem.conf' ]; then
+                gpinitsystem -c /home/gpadmin/cluster/gpinitsystem.conf -h /home/gpadmin/cluster/hosts -a
               else
-                  echo '错误: 找不到集群配置文件'
+                  echo 'Error: cluster configuration file not found'
                   exit 1
               fi
             
-            # 环境变量已在 setup_user.sh 中配置，这里只需重新加载
+            # Environment variables have been configured in setup_user.sh, only need to reload here
             source ~/.bashrc
         "
         
         if [ $? -eq 0 ]; then
-            print_info "HashData 集群初始化成功！"
+            print_info "HashData cluster initialization successful!"
         else
-            print_error "HashData 集群初始化失败"
+            print_error "HashData cluster initialization failed"
         fi
     else
-        print_info "Segment 节点 ${HOSTNAME} 准备就绪"
+        print_info "Segment node ${HOSTNAME} is ready"
         
-        # 数据目录已在setup_user.sh中创建和配置权限
+        # Data directory has been created and configured permissions in setup_user.sh
     fi
 }
 
-# 主函数
+# Main function
 main() {
-    print_info "=== 开始初始化 HashData Lightning 集群 ==="
+    print_info "=== Start initializing HashData Lightning cluster ==="
     
-    print_info "=== HashData Lightning 2.0 容器初始化 ==="
-    print_info "节点类型: ${NODE_TYPE:-unknown}"
-    print_info "主机名: ${HOSTNAME:-unknown}"
+    print_info "=== HashData Lightning 2.0 container initialization ==="
+    print_info "Node type: ${NODE_TYPE:-unknown}"
+    print_info "Hostname: ${HOSTNAME:-unknown}"
     
-    # 检查必要的环境变量
+    # Check necessary environment variables
     if [ -z "${GPADMIN_PASSWORD:-}" ]; then
-        print_warning "GPADMIN_PASSWORD 环境变量未设置，使用默认密码"
+        print_warning "GPADMIN_PASSWORD environment variable not set, using default password"
         export GPADMIN_PASSWORD="Hashdata@123"
     fi
     
-    # 设置 gpadmin 用户（动态检测权限）
-    print_info "设置 gpadmin 用户..."
+    # Set gpadmin user (dynamically detect permissions)
+    print_info "Setting gpadmin user..."
     if [ -f "/tmp/configs/init/setup_user.sh" ]; then
-        # 复制脚本到可写目录并设置执行权限
+        # Copy script to writable directory and set execution permissions
         cp /tmp/configs/init/setup_user.sh /tmp/setup_user.sh
         chmod +x /tmp/setup_user.sh
         /tmp/setup_user.sh
     else
-        print_error "未找到用户设置脚本"
+        print_error "User setup script not found"
         exit 1
     fi
     
-    # 根据节点类型创建数据目录
-    create_node_directories
+    # Create data directory based on node type
     
-    # 复制配置文件（在gpadmin用户创建之后）
+    # Copy configuration files (after gpadmin user is created)
     copy_config_files
     
-    # 应用系统配置
-    apply_system_config
+    # Apply system configuration
     
-    # 启动 SSH 服务
+    # Start SSH service
     start_ssh_service
     
-    # 验证 SSH 密钥配置
+    # Verify SSH key configuration
     verify_ssh_keys
     
-    # 等待其他节点启动
+    # Wait for other nodes to start
     wait_for_nodes
     
-    # 配置集群互联
+    # Configure cluster connectivity
     setup_cluster_connectivity
     
-    # 初始化数据库集群（仅在 Master 节点）
+    # Initialize database cluster (only on Master node)
     init_database_cluster
     
-    print_info "容器初始化完成"
+    print_info "Container initialization completed"
     
-    # 保持容器运行
-    print_info "容器启动完成，进入守护模式..."
+    # Keep container running
+    print_info "Container started, entering daemon mode..."
     tail -f /dev/null
 }
 
-# 执行主函数
+# Execute main function
 main "$@" 
