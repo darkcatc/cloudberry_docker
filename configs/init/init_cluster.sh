@@ -87,9 +87,9 @@ start_ssh_service() {
     /usr/sbin/sshd
     
     if [ $? -eq 0 ]; then
-        print_info "SSH 服务启动成功"
+        print_info "SSH service started successfully"
     else
-        print_error "SSH 服务启动失败"
+        print_error "SSH service startup failed"
         exit 1
     fi
 }
